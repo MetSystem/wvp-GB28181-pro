@@ -6,6 +6,7 @@ import com.genersoft.iot.vmp.service.bean.ErrorCallback;
 import com.genersoft.iot.vmp.vmanager.bean.ResourceBaseInfo;
 import com.genersoft.iot.vmp.vmanager.bean.WVPResult;
 import com.github.pagehelper.PageInfo;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -117,6 +118,9 @@ public interface IDeviceService {
      */
     void updateDevice(Device device);
 
+    @Transactional
+    void updateDeviceList(List<Device> deviceList);
+
     /**
      * 检查设备编号是否已经存在
      * @param deviceId 设备编号
@@ -196,5 +200,6 @@ public interface IDeviceService {
 
     void deviceInfo(Device device, ErrorCallback<Object> callback);
 
-    void queryPreset(Device device, String channelId, ErrorCallback<Object> callback);
+    void queryPreset(Device device, String channelId, ErrorCallback<List<Preset>> callback);
+
 }
