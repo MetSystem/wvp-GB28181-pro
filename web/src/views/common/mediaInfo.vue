@@ -44,6 +44,9 @@ export default {
   },
   methods: {
     getMediaInfo: function() {
+      if (!this.app || !this.stream || !this.mediaServerId) {
+        return
+      }
       this.$store.dispatch('server/getMediaInfo', {
         app: this.app,
         stream: this.stream,
@@ -52,6 +55,7 @@ export default {
         .then(data => {
           this.info = data
         })
+        .catch(() => {})
     },
     startTask: function() {
       this.task = setInterval(this.getMediaInfo, 1000)
@@ -87,11 +91,6 @@ export default {
 }
 </script>
 <style>
-.channel-form {
-  display: grid;
-  background-color: #FFFFFF;
-  padding: 1rem 2rem 0 2rem;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 1rem;
-}
+#mediaInfo { position: relative; }
+#mediaInfo >>> .el-descriptions__title { font-size: 14px; color: #606266; font-weight: 600; }
 </style>

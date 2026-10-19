@@ -8,6 +8,7 @@ import com.genersoft.iot.vmp.conf.security.JwtUtils;
 import com.genersoft.iot.vmp.gb28181.bean.Device;
 import com.genersoft.iot.vmp.gb28181.bean.DeviceChannel;
 import com.genersoft.iot.vmp.gb28181.bean.SyncStatus;
+import com.genersoft.iot.vmp.gb28181.bean.TimeStatistics;
 import com.genersoft.iot.vmp.gb28181.service.IDeviceChannelService;
 import com.genersoft.iot.vmp.gb28181.service.IDeviceService;
 import com.genersoft.iot.vmp.gb28181.service.IInviteStreamService;
@@ -21,8 +22,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.compress.utils.IOUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.ibatis.annotations.Options;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -31,12 +34,11 @@ import org.springframework.util.ObjectUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.async.DeferredResult;
 
-import javax.servlet.ServletOutputStream;
-import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.util.List;
 
 @Tag(name  = "国标设备查询", description = "国标设备查询")
 @SuppressWarnings("rawtypes")
@@ -136,7 +138,8 @@ public class DeviceQuery {
 			log.debug("设备通道信息同步API调用，deviceId：" + deviceId);
 		}
 		Device device = deviceService.getDeviceByDeviceId(deviceId);
-		if (device.getRegisterTime() == null) {
+		Assert.notNull(device, "设备不存在");
+		if (device.getTransport() == null) {
 			WVPResult<SyncStatus> wvpResult = new WVPResult<>();
 			wvpResult.setCode(ErrorCode.ERROR100.getCode());
 			wvpResult.setMsg("设备尚未注册过");
@@ -155,7 +158,7 @@ public class DeviceQuery {
 			log.debug("设备信息删除API调用，deviceId：" + deviceId);
 		}
 
-		// 清除redis记录
+		// 清除 redis 记录
 		deviceService.delete(deviceId);
 		JSONObject json = new JSONObject();
 		json.put("deviceId", deviceId);
@@ -181,8 +184,7 @@ public class DeviceQuery {
 
 		DeviceChannel deviceChannel = deviceChannelService.getOne(deviceId,channelId);
 		if (deviceChannel == null) {
-			PageInfo<DeviceChannel> deviceChannelPageResult = new PageInfo<>();
-			return deviceChannelPageResult;
+            return new PageInfo<>();
 		}
 
 		return deviceChannelService.getSubChannels(deviceChannel.getDataDeviceId(), channelId, query, channelType, online, page, count);
@@ -222,6 +224,7 @@ public class DeviceQuery {
 				|| streamMode.equalsIgnoreCase("TCP-ACTIVE")
 				|| streamMode.equalsIgnoreCase("TCP-PASSIVE"), "数据流传输模式, 取值：UDP/TCP-ACTIVE/TCP-PASSIVE");
 		Device device = deviceService.getDeviceByDeviceId(deviceId);
+		Assert.notNull(device, "设备不存在");
 		device.setStreamMode(streamMode.toUpperCase());
 		deviceService.updateCustomDevice(device);
 	}
@@ -328,11 +331,13 @@ public class DeviceQuery {
 		return result;
 	}
 
-
+    /**
+     * 此接口保留仅作为兼容，后续将移除，请迁移至
+     */
 	@GetMapping("/{deviceId}/sync_status")
-	@Operation(summary = "获取通道同步进度", security = @SecurityRequirement(name = JwtUtils.HEADER))
+	@Operation(summary = "获取通道同步进度（此接口保留仅作为兼容，后续将移除，请迁移至 /sync_status?deviceId=）", security = @SecurityRequirement(name = JwtUtils.HEADER))
 	@Parameter(name = "deviceId", description = "设备国标编号", required = true)
-	public WVPResult<SyncStatus> getSyncStatus(@PathVariable String deviceId) {
+	public WVPResult<SyncStatus> getSyncStatusInPath(@PathVariable String deviceId) {
 		SyncStatus channelSyncStatus = deviceService.getChannelSyncStatus(deviceId);
 		WVPResult<SyncStatus> wvpResult = new WVPResult<>();
 		if (channelSyncStatus == null) {
@@ -341,9 +346,13 @@ public class DeviceQuery {
 		}else if (channelSyncStatus.getErrorMsg() != null) {
 			wvpResult.setCode(ErrorCode.ERROR100.getCode());
 			wvpResult.setMsg(channelSyncStatus.getErrorMsg());
-		}else if (channelSyncStatus.getTotal() == null || channelSyncStatus.getTotal() == 0){
+		}else if (channelSyncStatus.getTotal() == null){
 			wvpResult.setCode(ErrorCode.SUCCESS.getCode());
 			wvpResult.setMsg("等待通道信息...");
+		}else if (channelSyncStatus.getTotal() == 0){
+			wvpResult.setCode(ErrorCode.SUCCESS.getCode());
+            wvpResult.setMsg(ErrorCode.SUCCESS.getMsg());
+            wvpResult.setData(channelSyncStatus);
 		}else {
 			wvpResult.setCode(ErrorCode.SUCCESS.getCode());
 			wvpResult.setMsg(ErrorCode.SUCCESS.getMsg());
@@ -351,6 +360,36 @@ public class DeviceQuery {
 		}
 		return wvpResult;
 	}
+
+    /**
+     * 此接口保留仅作为兼容，后续将移除，请迁移至
+     */
+    @GetMapping("/sync_status")
+    @Operation(summary = "获取通道同步进度", security = @SecurityRequirement(name = JwtUtils.HEADER))
+    @Parameter(name = "deviceId", description = "设备国标编号", required = true)
+    public WVPResult<SyncStatus> getSyncStatus(String deviceId) {
+        SyncStatus channelSyncStatus = deviceService.getChannelSyncStatus(deviceId);
+        WVPResult<SyncStatus> wvpResult = new WVPResult<>();
+        if (channelSyncStatus == null) {
+            wvpResult.setCode(ErrorCode.ERROR100.getCode());
+            wvpResult.setMsg("同步不存在");
+        }else if (channelSyncStatus.getErrorMsg() != null) {
+            wvpResult.setCode(ErrorCode.ERROR100.getCode());
+            wvpResult.setMsg(channelSyncStatus.getErrorMsg());
+        }else if (channelSyncStatus.getTotal() == null){
+            wvpResult.setCode(ErrorCode.SUCCESS.getCode());
+            wvpResult.setMsg("等待通道信息...");
+        }else if (channelSyncStatus.getTotal() == 0){
+            wvpResult.setCode(ErrorCode.SUCCESS.getCode());
+            wvpResult.setMsg(ErrorCode.SUCCESS.getMsg());
+            wvpResult.setData(channelSyncStatus);
+        }else {
+            wvpResult.setCode(ErrorCode.SUCCESS.getCode());
+            wvpResult.setMsg(ErrorCode.SUCCESS.getMsg());
+            wvpResult.setData(channelSyncStatus);
+        }
+        return wvpResult;
+    }
 
 	@GetMapping("/snap/{deviceId}/{channelId}")
 	@Operation(summary = "请求截图")
@@ -393,5 +432,35 @@ public class DeviceQuery {
 	@Parameter(name = "interval", description = "报送间隔", required = true)
 	public void subscribeMobilePosition(int id, int cycle, int interval) {
 		deviceService.subscribeMobilePosition(id, cycle, interval);
+	}
+
+	@GetMapping("/statistics/keepalive")
+	@Operation(summary = "请求心跳统计")
+	@Parameter(name = "deviceId", description = "设备国标编号", required = true)
+	@Parameter(name = "count", description = "返回的数量，按时间正向排序，返回的最新的", required = true)
+	public List<TimeStatistics> getKeepaliveTimeStatistics(String deviceId, Integer count) {
+		if (ObjectUtils.isEmpty(deviceId)) {
+			return List.of();
+		}
+		return deviceService.getKeepaliveTimeStatistics(deviceId, count);
+	}
+
+	@GetMapping("/statistics/register")
+	@Operation(summary = "请求注册统计")
+	@Parameter(name = "deviceId", description = "设备国标编号", required = true)
+	@Parameter(name = "count", description = "返回的数量，按时间正向排序，返回的最新的", required = true)
+	public List<TimeStatistics> getRegisterTimeStatistics(String deviceId, Integer count) {
+		if (ObjectUtils.isEmpty(deviceId)) {
+			return List.of();
+		}
+		return deviceService.getRegisterTimeStatistics(deviceId, count);
+	}
+
+	@GetMapping("/subscribe/alarm")
+	@Operation(summary = "开启/关闭报警订阅")
+	@Parameter(name = "id", description = "通道的Id", required = true)
+	@Parameter(name = "cycle", description = "订阅周期", required = true)
+	public void subscribeAlarm(int id, int cycle) {
+		deviceService.subscribeAlarm(id, cycle);
 	}
 }

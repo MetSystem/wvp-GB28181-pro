@@ -11,12 +11,13 @@ import org.springframework.boot.web.servlet.ServletComponentScan;
 import org.springframework.boot.web.servlet.support.SpringBootServletInitializer;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-import javax.servlet.ServletContext;
-import javax.servlet.ServletException;
-import javax.servlet.SessionCookieConfig;
-import javax.servlet.SessionTrackingMode;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.ServletException;    
+import jakarta.servlet.SessionCookieConfig;
+import jakarta.servlet.SessionTrackingMode;
 import java.util.Collections;
 
 /**
@@ -25,6 +26,7 @@ import java.util.Collections;
 @ServletComponentScan("com.genersoft.iot.vmp.conf")
 @SpringBootApplication
 @EnableScheduling
+@EnableAsync(proxyTargetClass = true)
 @EnableCaching
 @Slf4j
 public class VManageBootstrap extends SpringBootServletInitializer {
@@ -43,6 +45,7 @@ public class VManageBootstrap extends SpringBootServletInitializer {
 			log.info("构建时间： {}", gitUtil.getBuildDate());
 			log.info("GIT信息： 分支: {}, ID: {},  时间: {}", gitUtil.getBranch(), gitUtil.getCommitIdShort(), gitUtil.getCommitTime());
 		}
+
 	}
 	// 项目重启
 	public static void restart() {

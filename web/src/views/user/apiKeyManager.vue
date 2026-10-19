@@ -107,8 +107,8 @@
 </template>
 
 <script>
-import addUserApiKey from '../dialog/addUserApiKey.vue'
-import remarkUserApiKey from '../dialog/remarkUserApiKey.vue'
+import addUserApiKey from './dialog/addUserApiKey.vue'
+import remarkUserApiKey from './dialog/remarkUserApiKey.vue'
 import moment from 'moment'
 
 export default {
@@ -151,7 +151,8 @@ export default {
       this.getUserApiKeyListLoading = true
       this.$store.dispatch('userApiKeys/queryList', {
         page: this.currentPage,
-        count: this.count
+        count: this.count,
+        userId: this.userId
       })
         .then(data => {
           this.total = data.total

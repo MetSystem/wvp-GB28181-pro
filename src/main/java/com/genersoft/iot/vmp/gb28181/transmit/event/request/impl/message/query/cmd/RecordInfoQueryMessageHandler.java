@@ -65,7 +65,11 @@ public class RecordInfoQueryMessageHandler extends SIPRequestProcessorParent imp
 
     @Override
     public void handForDevice(RequestEvent evt, Device device, Element element) {
-
+        try {
+            responseAck((SIPRequest) evt.getRequest(), Response.OK);
+        } catch (SipException | InvalidArgumentException | ParseException e) {
+            log.error("[命令发送失败] 回复200 OK: {}", e.getMessage());
+        }
     }
 
     @Override
@@ -140,11 +144,21 @@ public class RecordInfoQueryMessageHandler extends SIPRequestProcessorParent imp
                                 log.error("[命令发送失败] 录像查询回复: {}", e.getMessage());
                             }
                         }),(eventResult -> {
-                            // 查询失败
+                            // 查询失败 - 校验statusCode合法性，防止非法状态码导致IllegalArgumentException
                             try {
-                                responseAck(request, eventResult.statusCode, eventResult.msg);
+                                int statusCode = eventResult.statusCode;
+                                if (statusCode < 100 || statusCode > 699) {
+                                    log.warn("[录像查询失败] 收到非法SIP状态码: {}，通道: {}/{}，消息: {}，已替换为500",
+                                            statusCode, platform.getName(), channelId, eventResult.msg);
+                                    statusCode = Response.SERVER_INTERNAL_ERROR; // 500
+                                }
+                                responseAck(request, statusCode, eventResult.msg);
                             } catch (SipException | InvalidArgumentException | ParseException e) {
                                 log.error("[命令发送失败] 录像查询回复: {}", e.getMessage());
+                            } catch (Exception e) {
+                                // 兜底捕获所有异常，防止异常逃逸到Spring调度层导致无限重试
+                                log.error("[录像查询] 未预期的异常，通道: {}/{}: {}",
+                                        platform.getName(), channelId, e.getMessage(), e);
                             }
                         }));
             } catch (InvalidArgumentException | ParseException | SipException e) {

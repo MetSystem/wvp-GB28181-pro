@@ -6,6 +6,7 @@ import com.genersoft.iot.vmp.service.bean.ErrorCallback;
 import com.genersoft.iot.vmp.vmanager.bean.ResourceBaseInfo;
 import com.genersoft.iot.vmp.vmanager.bean.WVPResult;
 import com.github.pagehelper.PageInfo;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -20,13 +21,12 @@ public interface IDeviceService {
      * 设备上线
      * @param device 设备信息
      */
-    void online(Device device, SipTransactionInfo sipTransactionInfo);
+    void online(Device device);
 
     /**
      * 设备下线
-     * @param deviceId 设备编号
      */
-    void offline(String deviceId, String reason);
+    void offline(Device device);
 
     /**
      * 添加目录订阅
@@ -55,6 +55,10 @@ public interface IDeviceService {
      * @return 布尔
      */
     boolean removeMobilePositionSubscribe(Device device, CommonCallback<Boolean> callback);
+
+    boolean addAlarmSubscribe(@NotNull Device device, SipTransactionInfo transactionInfo);
+
+    boolean removeAlarmSubscribe(Device device, CommonCallback<Boolean> callback);
 
     /**
      * 移除移动位置订阅
@@ -90,13 +94,6 @@ public interface IDeviceService {
     List<Device> getAllOnlineDevice(String serverId);
 
     List<Device> getAllByStatus(Boolean status);
-
-    /**
-     * 判断是否注册已经失效
-     * @param device 设备信息
-     * @return 布尔
-     */
-    boolean expire(Device device);
 
     /**
      * 检查设备状态
@@ -174,7 +171,9 @@ public interface IDeviceService {
 
     void deviceBasicConfig(Device device, BasicParam basicParam, ErrorCallback<String> callback);
 
-    void deviceConfigQuery(Device device, String channelId, String configType, ErrorCallback<Object> callback);
+    void deviceVideoParamConfig(Device device, VideoParamOpt videoParamOpt, ErrorCallback<String> callback);
+
+    <T extends DeviceConfigAware> void deviceConfigQuery(Device device, String channelId, Class<T> configClass, ErrorCallback<T> callback);
 
     void teleboot(Device device);
 
@@ -188,11 +187,13 @@ public interface IDeviceService {
 
     void homePosition(Device device, String channelId, Boolean enabled, Integer resetTime, Integer presetIndex, ErrorCallback<String> callback);
 
-    void dragZoomIn(Device device, String channelId, int length, int width, int midpointx, int midpointy, int lengthx, int lengthy, ErrorCallback<String> callback);
+    void dragZoomIn(Device device, String channelId, int length, int width, int midPointX, int midPointY, int lengthX, int lengthY);
 
-    void dragZoomOut(Device device, String channelId, int length, int width, int midpointx, int midpointy, int lengthx, int lengthy, ErrorCallback<String> callback);
+    void dragZoomOut(Device device, String channelId, int length, int width, int midPointX, int midPointY, int lengthX, int lengthY);
 
     void deviceStatus(Device device, ErrorCallback<String> callback);
+
+    void subscribeAlarm(int id, int cycle);
 
     void updateDeviceHeartInfo(Device device);
 
@@ -202,4 +203,7 @@ public interface IDeviceService {
 
     void queryPreset(Device device, String channelId, ErrorCallback<List<Preset>> callback);
 
+    List<TimeStatistics> getKeepaliveTimeStatistics(String deviceId, Integer count);
+
+    List<TimeStatistics> getRegisterTimeStatistics(String deviceId, Integer count);
 }

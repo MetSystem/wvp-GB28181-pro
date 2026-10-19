@@ -25,4 +25,8 @@ public interface ISourcePTZService {
     void wiper(CommonGBChannel channel, FrontEndControlCodeForWiper frontEndControlCode, ErrorCallback<String> callback);
 
     void queryPreset(CommonGBChannel channel, ErrorCallback<List<Preset>> callback);
+
+    void dragZoom(CommonGBChannel channel, FrontEndControlCodeForDragZoom frontEndControlCode, ErrorCallback<String> callback);
+
+    void homePosition(CommonGBChannel channel, Boolean enabled, Integer resetTime, Integer presetIndex, ErrorCallback<String> callback);
 }

@@ -18,6 +18,11 @@ public class GPSMsgInfo {
     private Integer channelId;
 
     /**
+     *
+     */
+    private String app;
+
+    /**
      * 经度 (必选)
      */
     private double lng;
@@ -57,7 +62,7 @@ public class GPSMsgInfo {
         gpsMsgInfo.setLat(mobilePosition.getLatitude());
         gpsMsgInfo.setSpeed(mobilePosition.getSpeed());
         gpsMsgInfo.setDirection(mobilePosition.getDirection());
-        gpsMsgInfo.setTime(DateUtil.yyyy_MM_dd_HH_mm_ssToISO8601(mobilePosition.getTime()));
+        gpsMsgInfo.setTime(DateUtil.timestampMsTo_yyyy_MM_dd_HH_mm_ss(mobilePosition.getTimestamp()));
         return gpsMsgInfo;
     }
 }

@@ -7,6 +7,7 @@ import com.genersoft.iot.vmp.gb28181.bean.CommonRecordInfo;
 import com.genersoft.iot.vmp.gb28181.bean.InviteMessageInfo;
 import com.genersoft.iot.vmp.gb28181.bean.Platform;
 import com.genersoft.iot.vmp.service.bean.ErrorCallback;
+import com.genersoft.iot.vmp.vmanager.bean.AudioTalkResult;
 
 import java.util.List;
 
@@ -21,7 +22,7 @@ public interface IGbChannelPlayService {
     void download(CommonGBChannel channel, Long startTime, Long stopTime, Integer downloadSpeed,
                   ErrorCallback<StreamInfo> callback);
 
-    void stopPlay(CommonGBChannel channel, String stream);
+    void stopPlay(CommonGBChannel channel);
 
     void play(CommonGBChannel channel, Platform platform, Boolean record, ErrorCallback<StreamInfo> callback);
 
@@ -38,4 +39,15 @@ public interface IGbChannelPlayService {
     void playbackSpeed(CommonGBChannel channel, String stream, Double speed);
 
     void queryRecord(CommonGBChannel channel, String startTime, String endTime, ErrorCallback<List<CommonRecordInfo>> callback);
+
+
+    void getSnap(CommonGBChannel channel, ErrorCallback<byte[]> callback);
+
+    AudioTalkResult startTalk(CommonGBChannel channel);
+
+    void stopTalk(CommonGBChannel channel);
+
+    AudioTalkResult startBroadcast(CommonGBChannel channel);
+
+    void stopBroadcast(CommonGBChannel channel);
 }

@@ -3,6 +3,7 @@ package com.genersoft.iot.vmp.vmanager.user;
 import com.genersoft.iot.vmp.conf.UserSetting;
 import com.genersoft.iot.vmp.conf.exception.ControllerException;
 import com.genersoft.iot.vmp.conf.security.JwtUtils;
+import com.genersoft.iot.vmp.conf.security.PasswordComplexityValidator;
 import com.genersoft.iot.vmp.conf.security.SecurityUtils;
 import com.genersoft.iot.vmp.conf.security.dto.LoginUser;
 import com.genersoft.iot.vmp.service.IRoleService;
@@ -24,8 +25,8 @@ import org.springframework.util.ObjectUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.security.sasl.AuthenticationException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -46,11 +47,13 @@ public class UserController {
     @Autowired
     private UserSetting userSetting;
 
+    @Autowired
+    private PasswordComplexityValidator passwordComplexityValidator;
+
     @GetMapping("/login")
     @PostMapping("/login")
     @Operation(summary = "登录", description = "登录成功后返回AccessToken， 可以从返回值获取到也可以从响应头中获取到，" +
             "后续的请求需要添加请求头 'access-token'或者放在参数里")
-
     @Parameter(name = "username", description = "用户名", required = true)
     @Parameter(name = "password", description = "密码（32位md5加密）", required = true)
     public LoginUser login(HttpServletRequest request, HttpServletResponse response, @RequestParam String username, @RequestParam String password){
@@ -90,6 +93,10 @@ public class UserController {
             if (user == null) {
                 throw new ControllerException(ErrorCode.ERROR100);
             }
+            // 密码复杂度校验
+            if (!passwordComplexityValidator.validatePassword(password, username)) {
+                throw new ControllerException(ErrorCode.ERROR400.getCode(), passwordComplexityValidator.getValidationErrorMessage());
+            }
             //int userId = SecurityUtils.getUserId();
             boolean result = userService.changePassword(user.getId(), DigestUtils.md5DigestAsHex(password.getBytes()));
             if (!result) {
@@ -111,6 +118,10 @@ public class UserController {
                                                  @RequestParam Integer roleId){
         if (ObjectUtils.isEmpty(username) || ObjectUtils.isEmpty(password) || roleId == null) {
             throw new ControllerException(ErrorCode.ERROR400.getCode(), "参数不可为空");
+        }
+        // 密码复杂度校验
+        if (!passwordComplexityValidator.validatePassword(password, username)) {
+            throw new ControllerException(ErrorCode.ERROR400.getCode(), passwordComplexityValidator.getValidationErrorMessage());
         }
         // 获取当前登录用户id
         int currenRoleId = SecurityUtils.getUserInfo().getRole().getId();
@@ -154,9 +165,8 @@ public class UserController {
     }
 
     @GetMapping("/all")
-    @Operation(summary = "查询用户", security = @SecurityRequirement(name = JwtUtils.HEADER))
+    @Operation(summary = "查询全部用户", security = @SecurityRequirement(name = JwtUtils.HEADER))
     public List<User> all(){
-        // 获取当前登录用户id
         return userService.getAllUsers();
     }
 
@@ -206,6 +216,12 @@ public class UserController {
         }
         Role role = userInfo.getRole();
         if (role != null && role.getId() == 1) {
+            // 密码复杂度校验
+            User changeUser = userService.getUserById(userId);
+            String changeUsername = changeUser != null ? changeUser.getUsername() : String.valueOf(userId);
+            if (!passwordComplexityValidator.validatePassword(password, changeUsername)) {
+                throw new ControllerException(ErrorCode.ERROR400.getCode(), passwordComplexityValidator.getValidationErrorMessage());
+            }
             boolean result = userService.changePassword(userId, DigestUtils.md5DigestAsHex(password.getBytes()));
             if (!result) {
                 throw new ControllerException(ErrorCode.ERROR100);
@@ -214,7 +230,7 @@ public class UserController {
     }
 
     @PostMapping("/userInfo")
-    @Operation(summary = "管理员修改普通用户密码")
+    @Operation(summary = "查询当前登录用户信息")
     public LoginUser getUserInfo() {
         // 获取当前登录用户id
         LoginUser userInfo = SecurityUtils.getUserInfo();

@@ -2,6 +2,8 @@ package com.genersoft.iot.vmp.media.zlm;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
+import com.genersoft.iot.vmp.common.enums.MediaStreamUtil;
+import com.genersoft.iot.vmp.conf.MediaConfig;
 import com.genersoft.iot.vmp.conf.UserSetting;
 import com.genersoft.iot.vmp.media.bean.MediaServer;
 import com.genersoft.iot.vmp.media.bean.ResultForOnPublish;
@@ -14,17 +16,19 @@ import com.genersoft.iot.vmp.media.zlm.event.HookZlmServerKeepaliveEvent;
 import com.genersoft.iot.vmp.media.zlm.event.HookZlmServerStartEvent;
 import com.genersoft.iot.vmp.service.IMediaService;
 import com.genersoft.iot.vmp.utils.MediaServerUtils;
+import io.swagger.v3.oas.annotations.Hidden;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.util.ObjectUtils;
 import org.springframework.web.bind.annotation.*;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * @description:针对 ZLMediaServer的hook事件监听
@@ -34,6 +38,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/index/hook")
+@Hidden
 public class ZLMHttpHookListener {
 
     @Autowired
@@ -41,6 +46,9 @@ public class ZLMHttpHookListener {
 
     @Autowired
     private IMediaService mediaService;
+
+    @Autowired
+    private MediaConfig mediaConfig;
 
     @Autowired
     private UserSetting userSetting;
@@ -111,11 +119,11 @@ public class ZLMHttpHookListener {
         ResultForOnPublish resultForOnPublish = mediaService.authenticatePublish(mediaServer, param.getApp(), param.getStream(), param.getParams());
         if (resultForOnPublish != null) {
             HookResultForOnPublish successResult = HookResultForOnPublish.getInstance(resultForOnPublish);
-            log.info("[ZLM HOOK]推流鉴权 响应：{}->{}->>>>{}", param.getMediaServerId(), param, successResult);
+            log.info("[ZLM HOOK]推流鉴权-允许-响应：{}->{}->>>>{}", param.getMediaServerId(), param, successResult);
             return successResult;
         }else {
             HookResultForOnPublish fail = HookResultForOnPublish.Fail();
-            log.info("[ZLM HOOK]推流鉴权 响应：{}->{}->>>>{}", param.getMediaServerId(), param, fail);
+            log.info("[ZLM HOOK]推流鉴权-拒绝-参数：{}->{}", param.getMediaServerId(), param);
             return fail;
         }
     }
@@ -155,6 +163,7 @@ public class ZLMHttpHookListener {
             } else {
                 log.info("[ZLM HOOK] 流注销, {}->{}->{}/{}", param.getMediaServerId(), param.getSchema(), param.getApp(), param.getStream());
                 MediaDepartureEvent mediaDepartureEvent = MediaDepartureEvent.getInstance(this, param, mediaServer);
+                mediaDepartureEvent.setCreateStamp(param.getCreateStamp());
                 applicationEventPublisher.publishEvent(mediaDepartureEvent);
             }
         }
@@ -224,13 +233,19 @@ public class ZLMHttpHookListener {
         jsonObject.put("ip", request.getRemoteAddr());
         ZLMServerConfig zlmServerConfig = JSON.to(ZLMServerConfig.class, jsonObject);
         zlmServerConfig.setIp(request.getRemoteAddr());
-        log.info("[ZLM HOOK] zlm 启动 " + zlmServerConfig.getGeneralMediaServerId());
+        log.info("[ZLM HOOK] zlm 启动 {}", zlmServerConfig.getGeneralMediaServerId());
         try {
             HookZlmServerStartEvent event = new HookZlmServerStartEvent(this);
-            MediaServer mediaServerItem = mediaServerService.getOne(zlmServerConfig.getMediaServerId());
-            if (mediaServerItem != null) {
-                event.setMediaServerItem(mediaServerItem);
+            MediaServer mediaServer = mediaServerService.getOne(zlmServerConfig.getMediaServerId());
+            if (mediaServer == null && Objects.equals(mediaConfig.getId(), zlmServerConfig.getGeneralMediaServerId())) {
+                mediaServer = mediaConfig.buildMediaSer();
+            }
+            if (mediaServer != null) {
+                event.setMediaServer(mediaServer);
+                event.setConfig(zlmServerConfig);
                 applicationEventPublisher.publishEvent(event);
+            }else {
+                log.info("[ZLM HOOK] 此zlm未接入 {}", zlmServerConfig.getGeneralMediaServerId());
             }
         }catch (Exception e) {
             log.info("[ZLM-HOOK-ZLM启动] 发送通知失败 ", e);
@@ -249,7 +264,7 @@ public class ZLMHttpHookListener {
         log.info("[ZLM HOOK] rtp发送关闭：{}->{}/{}", param.getMediaServerId(), param.getApp(), param.getStream());
 
         // 查找对应的上级推流，发送停止
-        if (!"rtp".equals(param.getApp())) {
+        if (!MediaStreamUtil.RTP_APP.equals(param.getApp())) {
             return HookResult.SUCCESS();
         }
         try {
@@ -280,7 +295,7 @@ public class ZLMHttpHookListener {
             MediaServer mediaServerItem = mediaServerService.getOne(param.getMediaServerId());
             if (mediaServerItem != null) {
                 event.setMediaServer(mediaServerItem);
-                event.setApp("rtp");
+                event.setApp(MediaStreamUtil.RTP_APP);
                 applicationEventPublisher.publishEvent(event);
             }
         }catch (Exception e) {

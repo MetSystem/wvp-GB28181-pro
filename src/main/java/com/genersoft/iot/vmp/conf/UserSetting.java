@@ -1,5 +1,6 @@
 package com.genersoft.iot.vmp.conf;
 
+import com.genersoft.iot.vmp.service.bean.AlarmType;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.core.annotation.Order;
@@ -128,6 +129,11 @@ public class UserSetting {
     private Boolean useCustomSsrcForParentInvite = Boolean.TRUE;
 
     /**
+     * 多端口模式使用随机SSRC，端口区分流，SSRC允许重复
+     */
+    private Boolean ssrcRandom = Boolean.FALSE;
+
+    /**
      * 开启接口文档页面。 默认开启，生产环境建议关闭，遇到swagger相关的漏洞时也可以关闭
      */
     private Boolean docEnable = Boolean.TRUE;
@@ -169,9 +175,9 @@ public class UserSetting {
     private boolean registerKeepIntDialog = false;
 
     /**
-     *     # 国标设备离线后的上线策略，
-     *     # 0： 国标标准实现，设备离线后不回复心跳，直到设备重新注册上线，
-     *     # 1（默认）： 对于离线设备，收到心跳就把设备设置为上线，并更新注册时间为上次这次心跳的时间。防止过期时间判断异常
+     * 国标设备离线后的上线策略，
+     * 0： 国标标准实现，设备离线后不回复心跳，直到设备重新注册上线，
+     * 1（默认）： 对于离线设备，收到心跳就把设备设置为上线，并更新注册时间为上次这次心跳的时间。防止过期时间判断异常
      */
     private int gbDeviceOnline = 1;
 
@@ -183,7 +189,7 @@ public class UserSetting {
     /**
      * jwk文件路径，若不指定则使用resources目录下的jwk.json
      */
-    private String jwkFile = "classpath:jwk.json";
+    private String jwkFile = null;
 
     /**
      * wvp集群模式下如果注册向上级的wvp奔溃，则自动选择一个其他wvp继续注册到上级
@@ -208,5 +214,72 @@ public class UserSetting {
      * 禁用date头，变相禁用了校时
      */
     private boolean disableDateHeader = false;
+
+    /**
+     * 同步业务分组时自动生成分组国标编号的模板，不配置则默认参考当前的sip域信息生成
+     */
+    private String groupSyncDeviceTemplate;
+
+    /**
+     * 与第三方进行分组同步时使用别名而不是分组ID， 如果没有设置此项为true，那么分组编号就是必须传递的。如果是设置为true则，自动为别名的分组生成新的编号
+     */
+    private boolean useAliasForGroupSync = false;
+
+    /**
+     * 设备ID严格模式，开启后设备注册时如果设备ID不符合规范则拒绝注册, 默认开启
+     */
+    private boolean deviceIdStrict = true;
+
+    /**
+     * 对于识别为设备的国标设备的，是否默认开启位置订阅
+     */
+    private boolean subscribeMobilePosition = false;
+
+    /**
+     * 处理报警消息时，会缓存通道数据，如果超出则丢弃低热度消息，被丢弃的通道下次使用就需要重新查询数据库，默认10000，
+     * 建议根据实际情况调整，过大可能会占用较多内存，过小可能会增加数据库查询压力
+     */
+    private long alarmCatchSize = 10000;
+
+    /**
+     * 是否使用拉流的方式获取快照，默认false，避免流量大规模消耗，开启后则使用拉流的方式获取快照
+     */
+    private boolean alarmSnapByStream = false;
+
+    /**
+     * 截图是否使用ZLM内部的解码通道(async=1)，默认 false 使用 ffmpeg 命令行截图，
+     * 部分环境下内部解码通道截图会失败(ZLM 报错 decode frame timeout)，此时保持关闭即可。
+     */
+    private boolean snapAsync = true;
+
+    /**
+     * 报警订阅白名单，设置后只有在此列表中的上级平台才会接收报警订阅消息，默认不设置则不限制
+     */
+    private List<AlarmType> allowedAlarmType = new ArrayList<>();
+
+    /**
+     * 报警记录保留天数，超过此天数的报警记录将在每天凌晨自动清理，默认30天，设置为0则不自动清理
+     */
+    private int alarmKeepDays = 7;
+
+    /**
+     * 设备注册时间列表最大保留条数，默认100
+     */
+    private int deviceRegisterTimeMaxCount = 100;
+
+    /**
+     * 设备注册时间列表过期时间（小时），默认3，设置为0则永不过期
+     */
+    private int deviceRegisterTimeTtlHours = 3;
+
+    /**
+     * 设备心跳时间列表最大保留条数，默认100
+     */
+    private int deviceKeepaliveTimeMaxCount = 100;
+
+    /**
+     * 设备心跳时间列表过期时间（小时），默认1，设置为0则永不过期
+     */
+    private int deviceKeepaliveTimeTtlHours = 1;
 
 }

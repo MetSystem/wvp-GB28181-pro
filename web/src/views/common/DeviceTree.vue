@@ -19,7 +19,10 @@
           ref="regionTree"
           :edit="false"
           :show-header="false"
+          :show-position="showPosition"
           :has-channel="true"
+          :contextmenu="contextmenu"
+          :tree-height="treeHeight"
           @clickEvent="treeNodeClickEvent"
           :default-expanded-keys="[]"
         />
@@ -28,7 +31,10 @@
           ref="groupTree"
           :edit="false"
           :show-header="false"
+          :show-position="showPosition"
           :has-channel="true"
+          :contextmenu="contextmenu"
+          :tree-height="treeHeight"
           @clickEvent="treeNodeClickEvent"
           :default-expanded-keys="[]"
         />
@@ -56,11 +62,20 @@ export default {
     contextMenuEvent: {
       type: Function,
       default: null
+    },
+    showPosition: {
+      type: Boolean,
+      default: false
+    },
+    contextmenu: {
+      type: Array,
+      default: null
     }
   },
   data() {
     return {
-      showRegion: true,
+      showRegion: false,
+      treeHeight: null,
       defaultProps: {
         children: 'children',
         label: 'name',
@@ -99,6 +114,7 @@ export default {
 
       // Calculate available height for tree
       const availableHeight = containerHeight - headerHeight - 30 // 30px for padding
+      this.treeHeight = availableHeight
 
       // Set the tree content height
       const treeContent = this.$el.querySelector('.tree-content')
@@ -134,6 +150,13 @@ export default {
     treeNodeClickEvent: function(data) {
       if (data.leaf) {
         this.$emit('clickEvent', data.id)
+      }
+    },
+    refresh: function(id) {
+      if (this.showRegion) {
+        this.$refs.regionTree.refresh(id)
+      }else {
+        this.$refs.groupTree.refresh(id)
       }
     }
   }

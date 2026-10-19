@@ -7,9 +7,7 @@ import com.genersoft.iot.vmp.conf.redis.RedisRpcConfig;
 import com.genersoft.iot.vmp.conf.redis.bean.RedisRpcMessage;
 import com.genersoft.iot.vmp.conf.redis.bean.RedisRpcRequest;
 import com.genersoft.iot.vmp.conf.redis.bean.RedisRpcResponse;
-import com.genersoft.iot.vmp.gb28181.bean.BasicParam;
-import com.genersoft.iot.vmp.gb28181.bean.Device;
-import com.genersoft.iot.vmp.gb28181.bean.SyncStatus;
+import com.genersoft.iot.vmp.gb28181.bean.*;
 import com.genersoft.iot.vmp.gb28181.service.IDeviceService;
 import com.genersoft.iot.vmp.service.redisMsg.dto.RedisRpcController;
 import com.genersoft.iot.vmp.service.redisMsg.dto.RedisRpcMapping;
@@ -31,7 +29,7 @@ public class RedisRpcDeviceController extends RpcController {
     private UserSetting userSetting;
 
     @Autowired
-    private RedisTemplate<Object, Object> redisTemplate;
+    private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
     private IDeviceService deviceService;
@@ -62,7 +60,7 @@ public class RedisRpcDeviceController extends RpcController {
             response.setBody("param error");
             return response;
         }
-        if (device.getRegisterTime() == null) {
+        if (device.getTransport() == null) {
             response.setStatusCode(ErrorCode.ERROR400.getCode());
             response.setBody("设备尚未注册过");
             return response;
@@ -115,13 +113,33 @@ public class RedisRpcDeviceController extends RpcController {
         return null;
     }
 
+    @RedisRpcMapping("deviceVideoParamConfig")
+    public RedisRpcResponse deviceVideoParamConfig(RedisRpcRequest request) {
+        VideoParamOpt videoParamOpt = JSONObject.parseObject(request.getParam().toString(), VideoParamOpt.class);
+
+        Device device = deviceService.getDeviceByDeviceId(videoParamOpt.getDeviceId());
+
+        RedisRpcResponse response = request.getResponse();
+        if (device == null || !userSetting.getServerId().equals(device.getServerId())) {
+            response.setStatusCode(ErrorCode.ERROR400.getCode());
+            response.setBody("param error");
+            return response;
+        }
+        deviceService.deviceVideoParamConfig(device, videoParamOpt, (code, msg, data) -> {
+                    response.setStatusCode(code);
+                    response.setBody(new WVPResult<>(code, msg, data));
+                    sendResponse(response);
+                });
+        return null;
+    }
+
     @RedisRpcMapping("deviceConfigQuery")
     public RedisRpcResponse deviceConfigQuery(RedisRpcRequest request) {
 
         JSONObject paramJson = JSONObject.parseObject(request.getParam().toString());
         String deviceId = paramJson.getString("deviceId");
         String channelId = paramJson.getString("channelId");
-        String configType = paramJson.getString("configType");
+        String className = paramJson.getString("configType");
 
         Device device = deviceService.getDeviceByDeviceId(deviceId);
 
@@ -131,12 +149,24 @@ public class RedisRpcDeviceController extends RpcController {
             response.setBody("param error");
             return response;
         }
-        deviceService.deviceConfigQuery(device, channelId, configType, (code, msg, data) -> {
-            response.setStatusCode(code);
-            response.setBody(new WVPResult<>(code, msg, data));
-            // 手动发送结果
-            sendResponse(response);
-        });
+        try {
+            Class<?> rawClass = Class.forName(className);
+            if (!DeviceConfigAware.class.isAssignableFrom(rawClass)) {
+                response.setStatusCode(ErrorCode.ERROR400.getCode());
+                response.setBody("invalid config type: " + className);
+                return response;
+            }
+            Class<? extends DeviceConfigAware> configClass = rawClass.asSubclass(DeviceConfigAware.class);
+            deviceService.deviceConfigQuery(device, channelId, configClass, (code, msg, data) -> {
+                response.setStatusCode(code);
+                response.setBody(new WVPResult<>(code, msg, data));
+                sendResponse(response);
+            });
+        } catch (ClassNotFoundException e) {
+            response.setStatusCode(ErrorCode.ERROR400.getCode());
+            response.setBody("unknown config type: " + className);
+            return response;
+        }
         return null;
     }
 
@@ -318,10 +348,10 @@ public class RedisRpcDeviceController extends RpcController {
         String channelId = paramJson.getString("channelId");
         Integer length = paramJson.getInteger("length");
         Integer width = paramJson.getInteger("width");
-        Integer midpointx = paramJson.getInteger("midpointx");
-        Integer midpointy = paramJson.getInteger("midpointy");
-        Integer lengthx = paramJson.getInteger("lengthx");
-        Integer lengthy = paramJson.getInteger("lengthy");
+        Integer midPointX = paramJson.getInteger("midPointX");
+        Integer midPointY = paramJson.getInteger("midPointY");
+        Integer lengthX = paramJson.getInteger("lengthX");
+        Integer lengthY = paramJson.getInteger("lengthY");
 
         Device device = deviceService.getDeviceByDeviceId(deviceId);
 
@@ -332,18 +362,15 @@ public class RedisRpcDeviceController extends RpcController {
             return response;
         }
         try {
-            deviceService.dragZoomIn(device, channelId, length, width, midpointx, midpointy, lengthx, lengthy, (code, msg, data) -> {
-                response.setStatusCode(ErrorCode.SUCCESS.getCode());
-                response.setBody(new WVPResult<>(code, msg, data));
-                // 手动发送结果
-                sendResponse(response);
-            });
+            deviceService.dragZoomIn(device, channelId, length, width, midPointX, midPointY, lengthX, lengthY);
         }catch (ControllerException e) {
             response.setStatusCode(e.getCode());
             response.setBody(WVPResult.fail(ErrorCode.ERROR100.getCode(), e.getMsg()));
-            sendResponse(response);
+            return response;
         }
-        return null;
+        response.setStatusCode(ErrorCode.SUCCESS.getCode());
+        response.setBody(WVPResult.success());
+        return response;
     }
 
     @RedisRpcMapping("dragZoomOut")
@@ -353,10 +380,10 @@ public class RedisRpcDeviceController extends RpcController {
         String channelId = paramJson.getString("channelId");
         Integer length = paramJson.getInteger("length");
         Integer width = paramJson.getInteger("width");
-        Integer midpointx = paramJson.getInteger("midpointx");
-        Integer midpointy = paramJson.getInteger("midpointy");
-        Integer lengthx = paramJson.getInteger("lengthx");
-        Integer lengthy = paramJson.getInteger("lengthy");
+        Integer midPointX = paramJson.getInteger("midPointX");
+        Integer midPointY = paramJson.getInteger("midPointY");
+        Integer lengthX = paramJson.getInteger("lengthX");
+        Integer lengthY = paramJson.getInteger("lengthY");
 
         Device device = deviceService.getDeviceByDeviceId(deviceId);
 
@@ -367,18 +394,15 @@ public class RedisRpcDeviceController extends RpcController {
             return response;
         }
         try {
-            deviceService.dragZoomOut(device, channelId, length, width, midpointx, midpointy, lengthx, lengthy, (code, msg, data) -> {
-                response.setStatusCode(ErrorCode.SUCCESS.getCode());
-                response.setBody(new WVPResult<>(code, msg, data));
-                // 手动发送结果
-                sendResponse(response);
-            });
+            deviceService.dragZoomOut(device, channelId, length, width, midPointX, midPointY, lengthX, lengthY);
         }catch (ControllerException e) {
             response.setStatusCode(e.getCode());
             response.setBody(WVPResult.fail(ErrorCode.ERROR100.getCode(), e.getMsg()));
-            sendResponse(response);
+            return response;
         }
-        return null;
+        response.setStatusCode(ErrorCode.SUCCESS.getCode());
+        response.setBody(WVPResult.success());
+        return response;
     }
 
     @RedisRpcMapping("alarm")

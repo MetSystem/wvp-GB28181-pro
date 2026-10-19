@@ -1,11 +1,13 @@
 <template>
-  <div id="h265Player" ref="container" style="background-color: #000000; " @dblclick="fullscreenSwich">
-    <div id="glplayer" ref="playerBox" style="width: 100%; height: 100%; margin: 0 auto;" />
-    <div v-if="playerLoading" class="player-loading">
-      <i class="el-icon-loading" />
-      <span>视频加载中</span>
+  <div :id="'h265Player-' + _uid" ref="container" style="background-color: #000000; position: relative; display: flex; align-items: center; justify-content: center;" @dblclick="fullscreenSwich" @mouseenter="showBar = true" @mouseleave="showBar = false">
+    <div :id="'glplayer-' + _uid" ref="playerBox" style="width: 100%; height: 100%; margin: 0 auto;">
+      <div v-if="playerLoading" class="play-loading">
+        <i class="el-icon-loading" />
+        <span style="margin-left: 5px">视频加载中</span>
+      </div>
     </div>
-    <div v-if="showButton" id="buttonsBox" class="buttons-box">
+
+    <div v-if="showButton" id="buttonsBox" class="buttons-box" :style="{ opacity: showBar ? 1 : 0, pointerEvents: showBar ? 'auto' : 'none' }">
       <div class="buttons-box-left">
         <i v-if="!playing" class="iconfont icon-play h265web-btn" @click="unPause" />
         <i v-if="playing" class="iconfont icon-pause h265web-btn" @click="pause" />
@@ -36,8 +38,10 @@ const h265webPlayer = {}
  * @see https://github.com/numberwolf/h265web.js/blob/master/example_normal/index.js
  */
 const token = 'base64:QXV0aG9yOmNoYW5neWFubG9uZ3xudW1iZXJ3b2xmLEdpdGh1YjpodHRwczovL2dpdGh1Yi5jb20vbnVtYmVyd29sZixFbWFpbDpwb3JzY2hlZ3QyM0Bmb3htYWlsLmNvbSxRUTo1MzEzNjU4NzIsSG9tZVBhZ2U6aHR0cDovL3h2aWRlby52aWRlbyxEaXNjb3JkOm51bWJlcndvbGYjODY5NCx3ZWNoYXI6bnVtYmVyd29sZjExLEJlaWppbmcsV29ya0luOkJhaWR1'
+import dragZoom from '../../mixins/dragZoom'
 export default {
   name: 'H265web',
+  mixins: [dragZoom],
   props: ['videoUrl', 'error', 'hasAudio', 'height', 'showButton'],
   data() {
     return {
@@ -58,36 +62,19 @@ export default {
       playerHeight: 0,
       inited: false,
       playerLoading: false,
-      mediaInfo: null
+      mediaInfo: null,
+      showBar: true
     }
   },
   watch: {
-    videoUrl(newData, oldData) {
-      this.play(newData)
-    },
     playing(newData, oldData) {
       this.$emit('playStatusChange', newData)
     },
     immediate: true
   },
-  mounted() {
-    const paramUrl = decodeURIComponent(this.$route.params.url)
-    window.onresize = () => {
-      this.updatePlayerDomSize()
-    }
-    this.btnDom = document.getElementById('buttonsBox')
-    console.log('初始化时的地址为: ' + paramUrl)
-    if (paramUrl) {
-      this.play(this.videoUrl)
-    }
-  },
+  mounted() {},
   destroyed() {
-    if (h265webPlayer[this._uid]) {
-      h265webPlayer[this._uid].destroy()
-    }
-    this.playing = false
-    this.loaded = false
-    this.playerLoading = false
+    this.destroy()
   },
   methods: {
     updatePlayerDomSize() {
@@ -135,14 +122,14 @@ export default {
       const options = {}
       h265webPlayer[this._uid] = new window.new265webjs(url, Object.assign(
         {
-          player: 'glplayer', // 播放器容器id
+          player: 'glplayer-' + this._uid,
           width: this.playerWidth,
           height: this.playerHeight,
           token: token,
           extInfo: {
             coreProbePart: 0.4,
             probeSize: 8192,
-            ignoreAudio: this.hasAudio == null ? 0 : (this.hasAudio ? 0 : 1)
+            ignoreAudio: this.hasAudio === null ? 0 : (this.hasAudio ? 0 : 1)
           }
         },
         options
@@ -167,7 +154,7 @@ export default {
         this.mediaInfo = h265web.mediaInfo()
       }
       h265web.onPlayTime = (videoPTS) => {
-        this.$emit('playTimeChange', videoPTS)
+        this.$emit('playTimeChange', videoPTS * 1000)
       }
       h265web.do()
     },
@@ -187,6 +174,9 @@ export default {
       }
     },
     playBtnClick: function(event) {
+      this.play(this.videoUrl)
+    },
+    refresh: function() {
       this.play(this.videoUrl)
     },
     play: function(url) {
@@ -239,6 +229,9 @@ export default {
       this.playing = false
       this.err = ''
     },
+    stop: function() {
+      this.destroy()
+    },
     fullscreenSwich: function() {
       const isFull = this.isFullscreen()
       if (isFull) {
@@ -256,20 +249,39 @@ export default {
     },
     setPlaybackRate: function(speed) {
       h265webPlayer[this._uid].setPlaybackRate(speed)
+    },
+    getVideoElement() {
+      return this.$refs.playerBox
+    },
+    getVideoRect() {
+      return this.getVideoElement().getBoundingClientRect()
     }
   }
 }
 </script>
 
 <style>
+.play-loading {
+  width: 100%;
+  height: 100%;
+  color: rgb(255, 255, 255);
+  display: flex;
+  align-items: center;
+  margin: 0 auto;
+  justify-content: center;
+  font-size: 18px;
+}
 .buttons-box {
   width: 100%;
-  height: 28px;
-  background-color: rgba(43, 51, 63, 0.7);
+  height: 56px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0));
   position: absolute;
+  transition: opacity 0.3s ease;
   display: -webkit-box;
   display: -ms-flexbox;
   display: flex;
+  align-items: flex-end;
+  padding-bottom: 10px;
   left: 0;
   bottom: 0;
   user-select: none;
@@ -279,7 +291,6 @@ export default {
 .h265web-btn {
   width: 20px;
   color: rgb(255, 255, 255);
-  line-height: 27px;
   margin: 0px 10px;
   padding: 0px 2px;
   cursor: pointer;
@@ -290,6 +301,7 @@ export default {
 .buttons-box-right {
   position: absolute;
   right: 0;
+  bottom: 10px;
 }
 .player-loading {
   width: fit-content;

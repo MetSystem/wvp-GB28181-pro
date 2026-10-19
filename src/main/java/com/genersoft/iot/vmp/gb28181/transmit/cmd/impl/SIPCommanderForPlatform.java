@@ -14,10 +14,9 @@ import com.genersoft.iot.vmp.gb28181.transmit.cmd.ISIPCommanderForPlatform;
 import com.genersoft.iot.vmp.gb28181.transmit.cmd.SIPRequestHeaderPlarformProvider;
 import com.genersoft.iot.vmp.gb28181.utils.SipUtils;
 import com.genersoft.iot.vmp.media.bean.MediaServer;
-import com.genersoft.iot.vmp.media.event.hook.Hook;
 import com.genersoft.iot.vmp.media.event.hook.HookSubscribe;
-import com.genersoft.iot.vmp.media.event.hook.HookType;
 import com.genersoft.iot.vmp.media.service.IMediaServerService;
+import com.genersoft.iot.vmp.service.IReceiveRtpServerService;
 import com.genersoft.iot.vmp.service.bean.GPSMsgInfo;
 import com.genersoft.iot.vmp.service.bean.SSRCInfo;
 import com.genersoft.iot.vmp.storager.IRedisCatchStorage;
@@ -42,7 +41,9 @@ import javax.sip.header.WWWAuthenticateHeader;
 import javax.sip.message.Request;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -57,6 +58,9 @@ public class SIPCommanderForPlatform implements ISIPCommanderForPlatform {
 
     @Autowired
     private IMediaServerService mediaServerService;
+
+    @Autowired
+    private IReceiveRtpServerService receiveRtpServerService;
 
     @Autowired
     private SipLayer sipLayer;
@@ -136,7 +140,7 @@ public class SIPCommanderForPlatform implements ISIPCommanderForPlatform {
 
     @Override
     public String keepalive(Platform parentPlatform, SipSubscribe.Event errorEvent , SipSubscribe.Event okEvent) throws SipException, InvalidArgumentException, ParseException {
-        log.info("[国标级联] 发送心跳， 上级平台编号： {}", parentPlatform.getServerGBId());
+        log.info("[国标级联] 发送心跳， 上级平台： {}/{}", parentPlatform.getName(), parentPlatform.getServerGBId());
         String characterSet = parentPlatform.getCharacterSet();
         StringBuffer keepaliveXml = new StringBuffer(200);
         keepaliveXml.append("<?xml version=\"1.0\" encoding=\"")
@@ -218,16 +222,18 @@ public class SIPCommanderForPlatform implements ISIPCommanderForPlatform {
         if (index > channels.size()) {
             return;
         }
-        List<CommonGBChannel> deviceChannels;
-        if (index + parentPlatform.getCatalogGroup() < channels.size()) {
-            deviceChannels = channels.subList(index, index + parentPlatform.getCatalogGroup());
+        String catalogXml;
+        if (channels.isEmpty()) {
+            catalogXml = getCatalogXml(Collections.emptyList(), sn, parentPlatform, 0);
         }else {
-            deviceChannels = channels.subList(index, channels.size());
+            List<CommonGBChannel> subChannelList;
+            if (index + parentPlatform.getCatalogGroup() < channels.size()) {
+                subChannelList = channels.subList(index, index + parentPlatform.getCatalogGroup());
+            }else {
+                subChannelList = channels.subList(index, channels.size());
+            }
+            catalogXml = getCatalogXml(subChannelList, sn, parentPlatform, channels.size());
         }
-        if(deviceChannels.isEmpty()) {
-            return;
-        }
-        String catalogXml = getCatalogXml(deviceChannels, sn, parentPlatform, channels.size());
         // callid
         CallIdHeader callIdHeader = sipSender.getNewCallIdHeader(parentPlatform.getDeviceIp(),parentPlatform.getTransport());
 
@@ -325,22 +331,29 @@ public class SIPCommanderForPlatform implements ISIPCommanderForPlatform {
      * @return
      */
     @Override
-    public void deviceStatusResponse(Platform parentPlatform, String channelId, String sn, String fromTag, boolean status) throws SipException, InvalidArgumentException, ParseException {
+    public void deviceStatusResponse(Platform parentPlatform, String channelId, String sn, String fromTag, Boolean status) throws SipException, InvalidArgumentException, ParseException {
         if (parentPlatform == null) {
             return ;
         }
-        String statusStr = (status)?"ONLINE":"OFFLINE";
+        String statusStr = null;
+        if (status != null) {
+            statusStr = (status)?"ONLINE":"OFFLINE";
+        }
         String characterSet = parentPlatform.getCharacterSet();
         StringBuffer deviceStatusXml = new StringBuffer(600);
         deviceStatusXml.append("<?xml version=\"1.0\" encoding=\"" + characterSet + "\"?>\r\n")
                 .append("<Response>\r\n")
                 .append("<CmdType>DeviceStatus</CmdType>\r\n")
                 .append("<SN>" +sn + "</SN>\r\n")
-                .append("<DeviceID>" + channelId + "</DeviceID>\r\n")
-                .append("<Result>OK</Result>\r\n")
-                .append("<Online>"+statusStr+"</Online>\r\n")
-                .append("<Status>OK</Status>\r\n")
-                .append("</Response>\r\n");
+                .append("<DeviceID>" + channelId + "</DeviceID>\r\n");
+        if (statusStr == null) {
+            deviceStatusXml.append("<Result>ERROR</Result>\r\n");
+        }else {
+            deviceStatusXml.append("<Result>OK</Result>\r\n")
+                    .append("<Online>"+statusStr+"</Online>\r\n")
+                    .append("<Status>OK</Status>\r\n");
+        }
+        deviceStatusXml.append("</Response>\r\n");
 
         CallIdHeader callIdHeader = sipSender.getNewCallIdHeader(parentPlatform.getDeviceIp(),parentPlatform.getTransport());
 
@@ -353,6 +366,7 @@ public class SIPCommanderForPlatform implements ISIPCommanderForPlatform {
         if (parentPlatform == null) {
             return;
         }
+        log.info("[发送 移动位置订阅] {}/{}->{},{}", parentPlatform.getServerGBId(), gpsMsgInfo.getId(), gpsMsgInfo.getLng(), gpsMsgInfo.getLat());
         if (log.isDebugEnabled()) {
             log.debug("[发送 移动位置订阅] {}/{}->{},{}", parentPlatform.getServerGBId(), gpsMsgInfo.getId(), gpsMsgInfo.getLng(), gpsMsgInfo.getLat());
         }
@@ -379,7 +393,7 @@ public class SIPCommanderForPlatform implements ISIPCommanderForPlatform {
     }
 
     @Override
-    public void sendAlarmMessage(Platform parentPlatform, DeviceAlarm deviceAlarm) throws SipException, InvalidArgumentException, ParseException {
+    public void sendAlarmMessage(Platform parentPlatform, DeviceAlarmNotify deviceAlarm) throws SipException, InvalidArgumentException, ParseException {
         if (parentPlatform == null) {
             return;
         }
@@ -430,7 +444,8 @@ public class SIPCommanderForPlatform implements ISIPCommanderForPlatform {
         Integer finalIndex = index;
         String catalogXmlContent = getCatalogXmlContentForCatalogAddOrUpdate(parentPlatform, channels,
                 deviceChannels.size(), type, subscribeInfo);
-        log.info("[发送NOTIFY通知]类型： {}，发送数量： {}", type, channels.size());
+        String channelDeviceIds = channels.stream().map(CommonGBChannel::getGbDeviceId).collect(Collectors.joining(","));
+        log.info("[发送NOTIFY通知]类型： {}，通道： {}", type, channelDeviceIds);
         sendNotify(parentPlatform, catalogXmlContent, subscribeInfo, eventResult -> {
             log.error("发送NOTIFY通知消息失败。错误：{} {}", eventResult.statusCode, eventResult.msg);
             log.error(catalogXmlContent);
@@ -627,8 +642,7 @@ public class SIPCommanderForPlatform implements ISIPCommanderForPlatform {
         String mediaServerId = sendRtpItem.getMediaServerId();
         MediaServer mediaServerItem = mediaServerService.getOne(mediaServerId);
         if (mediaServerItem != null) {
-            mediaServerService.releaseSsrc(mediaServerItem.getId(), sendRtpItem.getSsrc());
-            mediaServerService.closeRTPServer(mediaServerItem, sendRtpItem.getStream());
+            receiveRtpServerService.closeRTPServer(mediaServerItem, sendRtpItem.getApp(), sendRtpItem.getStream());
         }
         SIPRequest byeRequest = headerProviderPlatformProvider.createByeRequest(platform, sendRtpItem, channel);
         if (byeRequest == null) {
@@ -650,8 +664,6 @@ public class SIPCommanderForPlatform implements ISIPCommanderForPlatform {
             throw new SsrcTransactionNotFoundException(platform.getServerGBId(), channel.getGbDeviceId(), callId, stream);
         }
 
-        mediaServerService.releaseSsrc(ssrcTransaction.getMediaServerId(), ssrcTransaction.getSsrc());
-        mediaServerService.closeRTPServer(ssrcTransaction.getMediaServerId(), ssrcTransaction.getStream());
         sessionManager.removeByStream(ssrcTransaction.getApp(), ssrcTransaction.getStream());
 
         Request byteRequest = headerProviderPlatformProvider.createByteRequest(platform, channel.getGbDeviceId(), ssrcTransaction.getSipTransactionInfo());
@@ -682,8 +694,8 @@ public class SIPCommanderForPlatform implements ISIPCommanderForPlatform {
     }
 
     @Override
-    public void broadcastInviteCmd(Platform platform, CommonGBChannel channel,String sourceId, MediaServer mediaServerItem,
-                                   SSRCInfo ssrcInfo, HookSubscribe.Event event, SipSubscribe.Event okEvent,
+    public void broadcastInviteCmd(Platform platform, CommonGBChannel channel,String sourceId, MediaServer mediaServer,
+                                   SSRCInfo ssrcInfo, SipSubscribe.Event okEvent,
                                    SipSubscribe.Event errorEvent) throws ParseException, SipException, InvalidArgumentException {
         String stream = ssrcInfo.getStream();
 
@@ -691,15 +703,8 @@ public class SIPCommanderForPlatform implements ISIPCommanderForPlatform {
             return;
         }
 
-        log.info("{} 分配的ZLM为: {} [{}:{}]", stream, mediaServerItem.getId(), mediaServerItem.getIp(), ssrcInfo.getPort());
-        Hook hook = Hook.getInstance(HookType.on_media_arrival, "rtp", stream, mediaServerItem.getId());
-        subscribe.addSubscribe(hook, (hookData) -> {
-            if (event != null) {
-                event.response(hookData);
-                subscribe.removeSubscribe(hook);
-            }
-        });
-        String sdpIp = mediaServerItem.getSdpIp();
+        log.info("{} 分配的ZLM为: {} [{}:{}]", stream, mediaServer.getId(), mediaServer.getIp(), ssrcInfo.getPort());
+        String sdpIp = mediaServer.getSdpIp();
 
         StringBuffer content = new StringBuffer(200);
         content.append("v=0\r\n");
@@ -738,14 +743,12 @@ public class SIPCommanderForPlatform implements ISIPCommanderForPlatform {
                 callIdHeader);
         sipSender.transmitRequest(sipLayer.getLocalIp(platform.getDeviceIp()), request, (e -> {
             sessionManager.removeByStream(ssrcInfo.getApp(), ssrcInfo.getStream());
-            mediaServerService.releaseSsrc(mediaServerItem.getId(), ssrcInfo.getSsrc());
-            subscribe.removeSubscribe(hook);
             errorEvent.response(e);
         }), e -> {
             ResponseEvent responseEvent = (ResponseEvent) e.event;
             SIPResponse response = (SIPResponse) responseEvent.getResponse();
             SsrcTransaction ssrcTransaction = SsrcTransaction.buildForPlatform(platform.getServerGBId(), channel.getGbId(),
-                    callIdHeader.getCallId(), ssrcInfo.getApp(),  stream, ssrcInfo.getSsrc(), mediaServerItem.getId(), response, InviteSessionType.BROADCAST);
+                    callIdHeader.getCallId(), ssrcInfo.getApp(),  stream, ssrcInfo.getSsrc(), mediaServer.getId(), response, InviteSessionType.BROADCAST);
             sessionManager.put(ssrcTransaction);
             okEvent.response(e);
         });

@@ -11,7 +11,6 @@ import com.genersoft.iot.vmp.gb28181.transmit.cmd.ISIPCommanderForPlatform;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationListener;
-import org.springframework.stereotype.Component;
 
 import javax.sip.InvalidArgumentException;
 import javax.sip.SipException;
@@ -25,7 +24,7 @@ import java.util.Map;
  * catalog事件
  */
 @Slf4j
-@Component
+//@Component
 public class CatalogEventLister implements ApplicationListener<CatalogEvent> {
 
     @Autowired
@@ -160,6 +159,7 @@ public class CatalogEventLister implements ApplicationListener<CatalogEvent> {
                                 List<CommonGBChannel> channelList = new ArrayList<>();
                                 CommonGBChannel deviceChannel = channelMap.get(gbId);
                                 channelList.add(deviceChannel);
+
                                 try {
                                     sipCommanderFroPlatform.sendNotifyForCatalogAddOrUpdate(event.getType(), platform, channelList, subscribeInfo, null);
                                 } catch (InvalidArgumentException | ParseException | NoSuchFieldException |

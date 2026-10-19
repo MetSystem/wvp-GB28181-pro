@@ -17,7 +17,10 @@ import {
   removeToken,
   removeName,
   setServerId,
-  removeServerId
+  removeServerId,
+  getDefaultPassword,
+  setDefaultPassword,
+  removeDefaultPassword
 } from '@/utils/auth'
 import { resetRouter } from '@/router'
 
@@ -25,7 +28,9 @@ const getDefaultState = () => {
   return {
     token: getToken(),
     name: '',
-    serverId: ''
+    serverId: '',
+    defaultPassword: getDefaultPassword(),
+    showConfirmBoxForLoginLose: true
   }
 }
 
@@ -43,6 +48,12 @@ const mutations = {
   },
   SET_SERVER_ID: (state, serverId) => {
     state.serverId = serverId
+  },
+  SET_DEFAULT_PASSWORD: (state, defaultPassword) => {
+    state.defaultPassword = defaultPassword
+  },
+  SET_CONFIRM_BOX: (state, status) => {
+    state.showConfirmBoxForLoginLose = status
   }
 }
 
@@ -59,9 +70,12 @@ const actions = {
         commit('SET_TOKEN', data.accessToken)
         commit('SET_NAME', data.username)
         commit('SET_SERVER_ID', data.serverId)
+        commit('SET_DEFAULT_PASSWORD', !!data.defaultPassword)
+        commit('SET_CONFIRM_BOX', true)
         setToken(data.accessToken)
         setName(data.username)
         setServerId(data.serverId)
+        setDefaultPassword(data.defaultPassword)
         resolve()
       }).catch(error => {
         reject(error)
@@ -75,6 +89,7 @@ const actions = {
         removeToken()
         removeServerId()
         removeName()
+        removeDefaultPassword()
         resetRouter()
         commit('RESET_STATE')
         resolve()
@@ -152,6 +167,9 @@ const actions = {
     return new Promise((resolve, reject) => {
       changePassword(params).then(response => {
         const { data } = response
+        // 修改成功后清除默认密码标记
+        commit('SET_DEFAULT_PASSWORD', false)
+        removeDefaultPassword()
         resolve(data)
       }).catch(error => {
         reject(error)
@@ -168,6 +186,9 @@ const actions = {
         reject(error)
       })
     })
+  },
+  closeConfirmBoxForLoginLose({ commit }) {
+    commit('SET_CONFIRM_BOX', false)
   }
 }
 

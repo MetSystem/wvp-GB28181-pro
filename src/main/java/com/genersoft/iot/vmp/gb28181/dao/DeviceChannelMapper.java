@@ -2,14 +2,19 @@ package com.genersoft.iot.vmp.gb28181.dao;
 
 import com.genersoft.iot.vmp.gb28181.bean.Device;
 import com.genersoft.iot.vmp.gb28181.bean.DeviceChannel;
+import com.genersoft.iot.vmp.gb28181.bean.DeviceMobilePosition;
 import com.genersoft.iot.vmp.gb28181.controller.bean.ChannelReduce;
 import com.genersoft.iot.vmp.gb28181.dao.provider.DeviceChannelProvider;
-import com.genersoft.iot.vmp.service.bean.GPSMsgInfo;
+import com.genersoft.iot.vmp.gb28181.dao.provider.MysqlChannelUpsertProvider;
+import com.genersoft.iot.vmp.gb28181.dao.provider.PostgresStyleUpsertProvider;
+import com.genersoft.iot.vmp.gb28181.dao.provider.H2ChannelUpsertProvider;
+import com.genersoft.iot.vmp.gb28181.dao.provider.DmChannelUpsertProvider;
 import com.genersoft.iot.vmp.web.gb28181.dto.DeviceChannelExtend;
 import org.apache.ibatis.annotations.*;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 用于存储设备通道信息
@@ -104,8 +109,8 @@ public interface DeviceChannelMapper {
     @Delete("DELETE FROM wvp_device_channel WHERE data_type =1 and data_device_id=#{dataDeviceId}")
     int cleanChannelsByDeviceId(@Param("dataDeviceId") int dataDeviceId);
 
-    @Delete("DELETE FROM wvp_device_channel WHERE id=#{id}")
-    int del(@Param("id") int id);
+    @Delete("DELETE FROM wvp_device_channel WHERE data_type=#{dataType} and data_device_id=#{dataDeviceId} AND device_id=#{deviceId}")
+    int deleteForNotify(DeviceChannel channel);
 
     @Select(value = {" <script>" +
             " SELECT " +
@@ -146,7 +151,7 @@ public interface DeviceChannelMapper {
             " LEFT JOIN wvp_device de ON  dc.data_device_id = de.id " +
             " WHERE dc.data_type = 1 " +
             " <if test='deviceId != null'> AND de.device_id = #{deviceId} </if> " +
-            " <if test='query != null'> AND (dc.device_id LIKE '%${query}%' OR dc.name LIKE '%${query}%' OR dc.name LIKE '%${query}%')</if> " +
+            " <if test='query != null'> AND (dc.device_id LIKE concat('%',#{query},'%') OR dc.name LIKE concat('%',#{query},'%') OR dc.name LIKE concat('%',#{query},'%'))</if> " +
             " <if test='parentChannelId != null'> AND dc.parent_id=#{parentChannelId} </if> " +
             " <if test='online == true' > AND dc.status='ON'</if>" +
             " <if test='online == false' > AND dc.status='OFF'</if>" +
@@ -194,6 +199,13 @@ public interface DeviceChannelMapper {
 
     @Update(value = {"UPDATE wvp_device_channel SET status='OFF' WHERE id=#{id}"})
     void offline(@Param("id") int id);
+
+    @InsertProvider(type = MysqlChannelUpsertProvider.class, method = "batchUpsert", databaseId = "mysql")
+    @InsertProvider(type = PostgresStyleUpsertProvider.class, method = "batchUpsert", databaseId = "postgresql")
+    @InsertProvider(type = PostgresStyleUpsertProvider.class, method = "batchUpsert", databaseId = "kingbase")
+    @InsertProvider(type = H2ChannelUpsertProvider.class, method = "batchUpsert", databaseId = "h2")
+    @InsertProvider(type = DmChannelUpsertProvider.class, method = "batchUpsert", databaseId = "dm")
+    int batchUpsert(@Param("channels") List<DeviceChannel> channels);
 
     @Insert("<script> " +
             "insert into wvp_device_channel " +
@@ -269,67 +281,6 @@ public interface DeviceChannelMapper {
             "</script>"})
     int batchUpdate(List<DeviceChannel> updateChannels);
 
-
-    @Update({"<script>" +
-            "<foreach collection='updateChannels' item='item' separator=';'>" +
-            " UPDATE" +
-            " wvp_device_channel" +
-            " SET update_time=#{item.updateTime}" +
-            ", device_id=#{item.deviceId}" +
-            ", data_type=#{item.dataType}" +
-            ", data_device_id=#{item.dataDeviceId}" +
-            ", name=#{item.name}" +
-            ", manufacturer=#{item.manufacturer}" +
-            ", model=#{item.model}" +
-            ", owner=#{item.owner}" +
-            ", civil_code=#{item.civilCode}" +
-            ", block=#{item.block}" +
-            ", address=#{item.address}" +
-            ", parental=#{item.parental}" +
-            ", parent_id=#{item.parentId}" +
-            ", safety_way=#{item.safetyWay}" +
-            ", register_way=#{item.registerWay}" +
-            ", cert_num=#{item.certNum}" +
-            ", certifiable=#{item.certifiable}" +
-            ", err_code=#{item.errCode}" +
-            ", end_time=#{item.endTime}" +
-            ", secrecy=#{item.secrecy}" +
-            ", ip_address=#{item.ipAddress}" +
-            ", port=#{item.port}" +
-            ", password=#{item.password}" +
-            ", status=#{item.status}" +
-            ", longitude=#{item.longitude}" +
-            ", latitude=#{item.latitude}" +
-            ", ptz_type=#{item.ptzType}" +
-            ", position_type=#{item.positionType}" +
-            ", room_type=#{item.roomType}" +
-            ", use_type=#{item.useType}" +
-            ", supply_light_type=#{item.supplyLightType}" +
-            ", direction_type=#{item.directionType}" +
-            ", resolution=#{item.resolution}" +
-            ", business_group_id=#{item.businessGroupId}" +
-            ", download_speed=#{item.downloadSpeed}" +
-            ", svc_space_support_mod=#{item.svcSpaceSupportMod}" +
-            ", svc_time_support_mode=#{item.svcTimeSupportMode}" +
-            ", sub_count=#{item.subCount}" +
-            ", stream_id=#{item.streamId}" +
-            ", has_audio=#{item.hasAudio}" +
-            ", gps_time=#{item.gpsTime}" +
-            ", stream_identification=#{item.streamIdentification}" +
-            ", channel_type=#{item.channelType}" +
-            " WHERE data_type = #{item.dataType} and data_device_id = #{item.dataDeviceId} and device_id=#{item.deviceId}" +
-            "</foreach>" +
-            "</script>"})
-    int batchUpdateForNotify(List<DeviceChannel> updateChannels);
-
-    @Update(" update wvp_device_channel" +
-            " set sub_count = (select *" +
-            "             from (select count(0)" +
-            "                   from wvp_device_channel" +
-            "                   where data_type = 1 and data_device_id = #{dataDeviceId} and parent_id = #{channelId}) as temp)" +
-            " where data_type = 1 and data_device_id = #{dataDeviceId} and device_id = #{channelId}")
-    int updateChannelSubCount(@Param("dataDeviceId") int dataDeviceId, @Param("channelId") String channelId);
-
     @Update(value = {" <script>" +
             " UPDATE wvp_device_channel " +
             " SET " +
@@ -374,6 +325,8 @@ public interface DeviceChannelMapper {
             " status,\n" +
             " longitude,\n" +
             " latitude,\n" +
+            " gb_longitude,\n" +
+            " gb_latitude,\n" +
             " ptz_type,\n" +
             " position_type,\n" +
             " room_type,\n" +
@@ -474,6 +427,8 @@ public interface DeviceChannelMapper {
             " status,\n" +
             " longitude,\n" +
             " latitude,\n" +
+            " gb_longitude,\n" +
+            " gb_latitude,\n" +
             " ptz_type,\n" +
             " position_type,\n" +
             " room_type,\n" +
@@ -529,6 +484,8 @@ public interface DeviceChannelMapper {
             " status,\n" +
             " longitude,\n" +
             " latitude,\n" +
+            " gb_longitude,\n" +
+            " gb_latitude,\n" +
             " ptz_type,\n" +
             " position_type,\n" +
             " room_type,\n" +
@@ -556,16 +513,9 @@ public interface DeviceChannelMapper {
             " </script>"})
     void changeAudio(@Param("channelId") int channelId, @Param("audio") boolean audio);
 
-    @Update("<script> " +
-            "<foreach collection='gpsMsgInfoList' index='index' item='item' separator=';'> " +
-            "UPDATE wvp_device_channel SET gb_longitude = #{item.lng}, gb_latitude=#{item.lat} WHERE id = #{item.channelId}" +
-            "</foreach> " +
-            "</script>")
-    void updateStreamGPS(List<GPSMsgInfo> gpsMsgInfoList);
-
     @Update("UPDATE wvp_device_channel SET status=#{status} WHERE data_type=#{dataType} and data_device_id=#{dataDeviceId} AND device_id=#{deviceId}")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     void updateStatus(DeviceChannel channel);
-
 
     @Update({"<script>" +
             " UPDATE" +
@@ -652,6 +602,8 @@ public interface DeviceChannelMapper {
             " status,\n" +
             " longitude,\n" +
             " latitude,\n" +
+            " gb_longitude,\n" +
+            " gb_latitude,\n" +
             " ptz_type,\n" +
             " position_type,\n" +
             " room_type,\n" +
@@ -671,4 +623,70 @@ public interface DeviceChannelMapper {
     @Update(value = {"UPDATE wvp_device_channel SET status = 'OFF' WHERE data_type = 1 and data_device_id=#{deviceId}"})
     void offlineByDeviceId(@Param("deviceId") int deviceId);
 
+    @Update(value = {"<script>" +
+            "UPDATE wvp_device_channel SET status = 'OFF' WHERE data_type = 1 and data_device_id in " +
+            " <foreach item='item' index='index' collection='deviceList' open='(' separator=',' close=')'> #{item.id} </foreach>" +
+            " </script>"})
+    void offlineByDeviceIds(List<Device> deviceList);
+
+
+    @Select(value = {" <script>" +
+            " SELECT " +
+            " CONCAT(data_device_id, '_', device_id) as dbKey, \n" +
+            " id,\n" +
+            " data_device_id,\n" +
+            " create_time,\n" +
+            " update_time,\n" +
+            " sub_count,\n" +
+            " stream_id,\n" +
+            " has_audio,\n" +
+            " gps_time,\n" +
+            " stream_identification,\n" +
+            " channel_type,\n" +
+            " device_id,\n" +
+            " name,\n" +
+            " manufacturer,\n" +
+            " model,\n" +
+            " owner,\n" +
+            " civil_code,\n" +
+            " block,\n" +
+            " address,\n" +
+            " parental,\n" +
+            " parent_id,\n" +
+            " safety_way,\n" +
+            " register_way,\n" +
+            " cert_num,\n" +
+            " certifiable,\n" +
+            " err_code,\n" +
+            " end_time,\n" +
+            " secrecy,\n" +
+            " ip_address,\n" +
+            " port,\n" +
+            " password,\n" +
+            " status,\n" +
+            " longitude,\n" +
+            " latitude,\n" +
+            " gb_longitude,\n" +
+            " gb_latitude,\n" +
+            " ptz_type,\n" +
+            " position_type,\n" +
+            " room_type,\n" +
+            " use_type,\n" +
+            " supply_light_type,\n" +
+            " direction_type,\n" +
+            " resolution,\n" +
+            " business_group_id,\n" +
+            " download_speed,\n" +
+            " svc_space_support_mod,\n" +
+            " svc_time_support_mode\n" +
+            " from wvp_device_channel " +
+            " where data_type = 1 " +
+            " and data_device_id = #{deviceId} " +
+            " and device_id in " +
+            "<foreach item='item' index='index' collection='mobilePositionList' open='(' separator=',' close=')'>" +
+            " #{item.channelDeviceId} " +
+            "</foreach>" +
+            "</script>"})
+    @MapKey("dbKey")
+    Map<String, DeviceChannel> getAllForMobilePosition(@Param("deviceId") int deviceId, List<DeviceMobilePosition> mobilePositionList);
 }

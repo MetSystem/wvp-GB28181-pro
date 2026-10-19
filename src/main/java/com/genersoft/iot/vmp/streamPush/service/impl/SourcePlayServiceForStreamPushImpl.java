@@ -42,12 +42,17 @@ public class SourcePlayServiceForStreamPushImpl implements ISourcePlayService {
     }
 
     @Override
-    public void stopPlay(CommonGBChannel channel, String stream) {
+    public void stopPlay(CommonGBChannel channel) {
         // 推流
         try {
             playService.stop(channel.getDataDeviceId());
         }catch (Exception e) {
             log.error("[停止点播失败] {}({})", channel.getGbName(), channel.getGbDeviceId(), e);
         }
+    }
+
+    @Override
+    public void getSnap(CommonGBChannel channel, ErrorCallback<byte[]> callback) {
+
     }
 }

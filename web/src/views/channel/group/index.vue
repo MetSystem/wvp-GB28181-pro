@@ -10,7 +10,7 @@
       :add-channel-to-group="addChannelToGroup"
     />
     <div style="padding: 0 20px">
-      <el-form :inline="true" size="mini">
+      <el-form :inline="true" size="mini" ref="queryForm">
         <el-form-item>
           <el-breadcrumb v-if="regionParents.length > 0" separator="/" style="display: ruby">
             <el-breadcrumb-item v-for="key in regionParents" :key="key">{{ key }}</el-breadcrumb-item>
@@ -74,7 +74,7 @@
         ref="channelListTable"
         size="medium"
         :data="channelList"
-        height="calc(100vh - 190px)"
+        :height="tableHeight"
         style="width: 100%"
         header-row-class-name="table-header"
         @selection-change="handleSelectionChange"
@@ -89,6 +89,12 @@
             <div slot="reference" class="name-wrapper">
               <el-tag size="medium" effect="plain" type="success" :style="$channelTypeList[scope.row.dataType].style">{{ $channelTypeList[scope.row.dataType].name }}</el-tag>
             </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="位置信息" min-width="150">
+          <template v-slot:default="scope">
+            <span v-if="scope.row.gbLongitude && scope.row.gbLatitude">{{ scope.row.gbLongitude }}<br>{{ scope.row.gbLatitude }}</span>
+            <span v-if="!scope.row.gbLongitude || !scope.row.gbLatitude">无</span>
           </template>
         </el-table-column>
         <el-table-column label="状态" min-width="100">
@@ -120,7 +126,7 @@
 <script>
 import GroupTree from '../../common/GroupTree.vue'
 import GbChannelSelect from '../../dialog/GbChannelSelect.vue'
-import UnusualGroupChannelSelect from '../../dialog/UnusualGroupChannelSelect.vue'
+import UnusualGroupChannelSelect from './UnusualGroupChannelSelect.vue'
 
 export default {
   name: 'Group',
@@ -132,6 +138,7 @@ export default {
   data() {
     return {
       channelList: [],
+      tableHeight: 'calc(100vh - 190px)',
       searchStr: '',
       channelType: '',
       online: '',
@@ -151,6 +158,7 @@ export default {
 
   created() {
     this.initData()
+    this.tableHeight = `calc(100vh - ${this.$refs.queryForm.offsetHeight}px)`
   },
   destroyed() {
   },

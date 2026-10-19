@@ -5,7 +5,7 @@ import com.genersoft.iot.vmp.conf.exception.ControllerException;
 import com.genersoft.iot.vmp.conf.redis.bean.RedisRpcRequest;
 import com.genersoft.iot.vmp.conf.redis.bean.RedisRpcResponse;
 import com.genersoft.iot.vmp.gb28181.bean.SendRtpInfo;
-import com.genersoft.iot.vmp.gb28181.session.SSRCFactory;
+import com.genersoft.iot.vmp.gb28181.session.SendSsrcFactory;
 import com.genersoft.iot.vmp.media.bean.MediaInfo;
 import com.genersoft.iot.vmp.media.bean.MediaServer;
 import com.genersoft.iot.vmp.media.service.IMediaServerService;
@@ -19,15 +19,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import javax.sip.message.Response;
-
 @Component
 @Slf4j
 @RedisRpcController("sendRtp")
 public class RedisRpcSendRtpController extends RpcController {
 
     @Autowired
-    private SSRCFactory ssrcFactory;
+    private SendSsrcFactory sendSsrcFactory;
 
     @Autowired
     private IMediaServerService mediaServerService;
@@ -58,22 +56,23 @@ public class RedisRpcSendRtpController extends RpcController {
         if (mediaServerItem == null) {
             RedisRpcResponse response = request.getResponse();
             response.setStatusCode(ErrorCode.SUCCESS.getCode());
+            return response;
         }
         // 自平台内容
         int localPort = sendRtpServerService.getNextPort(mediaServerItem);
-        if (localPort == 0) {
+        if (localPort <= 0) {
             log.info("[redis-rpc] getSendRtpItem->服务器端口资源不足" );
             RedisRpcResponse response = request.getResponse();
             response.setStatusCode(ErrorCode.SUCCESS.getCode());
+            return response;
         }
         // 写入redis， 超时时回复
         sendRtpItem.setStatus(1);
         sendRtpItem.setServerId(userSetting.getServerId());
         sendRtpItem.setLocalIp(mediaServerItem.getSdpIp());
         if (sendRtpItem.getSsrc() == null) {
-            // 上级平台点播时不使用上级平台指定的ssrc，使用自定义的ssrc，参考国标文档-点播外域设备媒体流SSRC处理方式
-            String ssrc = "Play".equalsIgnoreCase(sendRtpItem.getSessionName()) ? ssrcFactory.getPlaySsrc(mediaServerItem.getId()) : ssrcFactory.getPlayBackSsrc(mediaServerItem.getId());
-            sendRtpItem.setSsrc(ssrc);
+            sendRtpItem.setSsrc(sendSsrcFactory.getSendSsrc(
+                    "Play".equalsIgnoreCase(sendRtpItem.getSessionName()) ? "0" : "1"));
         }
         sendRtpServerService.update(sendRtpItem);
         RedisRpcResponse response = request.getResponse();
@@ -101,6 +100,7 @@ public class RedisRpcSendRtpController extends RpcController {
         MediaServer mediaServer = mediaServerService.getOne(sendRtpItem.getMediaServerId());
         if (mediaServer == null) {
             log.info("[redis-rpc] startSendRtp->未找到MediaServer： {}", sendRtpItem.getMediaServerId() );
+            clearSendRtpItem(sendRtpItem);
             WVPResult wvpResult = WVPResult.fail(ErrorCode.ERROR100.getCode(), "未找到MediaServer");
             response.setBody(wvpResult);
             return response;
@@ -108,6 +108,7 @@ public class RedisRpcSendRtpController extends RpcController {
         MediaInfo mediaInfo = mediaServerService.getMediaInfo(mediaServer, sendRtpItem.getApp(), sendRtpItem.getStream());
         if (mediaInfo == null) {
             log.info("[redis-rpc] startSendRtp->流不在线： {}/{}", sendRtpItem.getApp(), sendRtpItem.getStream() );
+            clearSendRtpItem(sendRtpItem);
             WVPResult wvpResult = WVPResult.fail(ErrorCode.ERROR100.getCode(), "流不在线");
             response.setBody(wvpResult);
             return response;
@@ -116,6 +117,7 @@ public class RedisRpcSendRtpController extends RpcController {
             mediaServerService.startSendRtp(mediaServer, sendRtpItem);
         }catch (ControllerException exception) {
             log.info("[redis-rpc] 发流失败： {}/{}, 目标地址： {}：{}， {}", sendRtpItem.getApp(), sendRtpItem.getStream(), sendRtpItem.getIp(), sendRtpItem.getPort(), exception.getMsg());
+            clearSendRtpItem(sendRtpItem);
             WVPResult wvpResult = WVPResult.fail(exception.getCode(), exception.getMsg());
             response.setBody(wvpResult);
             return response;
@@ -145,6 +147,7 @@ public class RedisRpcSendRtpController extends RpcController {
         MediaServer mediaServer = mediaServerService.getOne(sendRtpItem.getMediaServerId());
         if (mediaServer == null) {
             log.info("[redis-rpc] stopSendRtp->未找到MediaServer： {}", sendRtpItem.getMediaServerId() );
+            clearSendRtpItem(sendRtpItem);
             WVPResult wvpResult = WVPResult.fail(ErrorCode.ERROR100.getCode(), "未找到MediaServer");
             response.setBody(wvpResult);
             return response;
@@ -157,9 +160,18 @@ public class RedisRpcSendRtpController extends RpcController {
             response.setBody(WVPResult.fail(exception.getCode(), exception.getMsg()));
             return response;
         }
+        clearSendRtpItem(sendRtpItem);
         log.info("[redis-rpc] 停止推流成功： {}/{}, 目标地址： {}：{}", sendRtpItem.getApp(), sendRtpItem.getStream(), sendRtpItem.getIp(), sendRtpItem.getPort() );
         response.setBody(WVPResult.success());
         return response;
+    }
+
+    private void clearSendRtpItem(SendRtpInfo sendRtpItem) {
+        if (sendRtpItem == null) {
+            return;
+        }
+        sendRtpServerService.delete(sendRtpItem);
+
     }
 
 }

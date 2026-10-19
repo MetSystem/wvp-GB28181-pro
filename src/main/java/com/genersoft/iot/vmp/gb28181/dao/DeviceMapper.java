@@ -30,8 +30,6 @@ public interface DeviceMapper {
             "port," +
             "host_address," +
             "expires," +
-            "register_time," +
-            "keepalive_time," +
             "create_time," +
             "update_time," +
             "charset," +
@@ -65,8 +63,6 @@ public interface DeviceMapper {
                 "port," +
                 "host_address," +
                 "expires," +
-                "register_time," +
-                "keepalive_time," +
                 "heart_beat_interval," +
                 "heart_beat_count," +
                 "position_capability," +
@@ -98,8 +94,6 @@ public interface DeviceMapper {
                 "#{port}," +
                 "#{hostAddress}," +
                 "#{expires}," +
-                "#{registerTime}," +
-                "#{keepaliveTime}," +
                 "#{heartBeatInterval}," +
                 "#{heartBeatCount}," +
                 "#{positionCapability}," +
@@ -133,8 +127,6 @@ public interface DeviceMapper {
                 ", port=#{port}" +
                 ", host_address=#{hostAddress}" +
                 ", on_line=#{onLine}" +
-                ", register_time=#{registerTime}" +
-                ", keepalive_time=#{keepaliveTime}" +
                 ", heart_beat_interval=#{heartBeatInterval}" +
                 ", position_capability=#{positionCapability}" +
                 ", heart_beat_count=#{heartBeatCount}" +
@@ -166,8 +158,6 @@ public interface DeviceMapper {
             "port,"+
             "host_address,"+
             "expires,"+
-            "register_time,"+
-            "keepalive_time,"+
             "create_time,"+
             "update_time,"+
             "charset,"+
@@ -183,7 +173,7 @@ public interface DeviceMapper {
             "media_server_id,"+
             "(SELECT count(0) FROM wvp_device_channel dc WHERE dc.data_type = #{dataType} and dc.data_device_id= de.id) as channel_count " +
             "FROM wvp_device de" +
-            "<if test='online != null'> where de.on_line=${online}</if>"+
+            "<if test='online != null'> where de.on_line=#{online}</if>"+
             " order by de.create_time desc "+
             " </script>"
     )
@@ -208,8 +198,6 @@ public interface DeviceMapper {
             "port,"+
             "host_address,"+
             "expires,"+
-            "register_time,"+
-            "keepalive_time,"+
             "create_time,"+
             "update_time,"+
             "charset,"+
@@ -224,6 +212,36 @@ public interface DeviceMapper {
             "server_id,"+
             "on_line"+
             " FROM wvp_device WHERE on_line = true")
+    @Select(value = "SELECT " +
+            "id, " +
+            "device_id, " +
+            "coalesce(custom_name, name) as name, " +
+            "password, " +
+            "manufacturer, " +
+            "model, " +
+            "firmware, " +
+            "transport," +
+            "stream_mode," +
+            "ip," +
+            "sdp_ip,"+
+            "local_ip,"+
+            "port,"+
+            "host_address,"+
+            "expires,"+
+            "create_time,"+
+            "update_time,"+
+            "charset,"+
+            "subscribe_cycle_for_catalog,"+
+            "subscribe_cycle_for_mobile_position,"+
+            "mobile_position_submission_interval,"+
+            "subscribe_cycle_for_alarm,"+
+            "ssrc_check,"+
+            "as_message_channel,"+
+            "broadcast_push_after_ack,"+
+            "geo_coord_sys,"+
+            "server_id,"+
+            "on_line"+
+            " FROM wvp_device WHERE on_line = 1", databaseId = "dm")
     List<Device> getOnlineDevices();
 
     @Select("SELECT " +
@@ -242,8 +260,6 @@ public interface DeviceMapper {
             "port,"+
             "host_address,"+
             "expires,"+
-            "register_time,"+
-            "keepalive_time,"+
             "create_time,"+
             "update_time,"+
             "charset,"+
@@ -259,6 +275,37 @@ public interface DeviceMapper {
             "server_id,"+
             "on_line"+
             " FROM wvp_device WHERE on_line = true and server_id = #{serverId}")
+    @Select(value = "SELECT " +
+            "id, " +
+            "device_id, " +
+            "coalesce(custom_name, name) as name, " +
+            "password, " +
+            "manufacturer, " +
+            "model, " +
+            "firmware, " +
+            "transport," +
+            "stream_mode," +
+            "ip," +
+            "sdp_ip,"+
+            "local_ip,"+
+            "port,"+
+            "host_address,"+
+            "expires,"+
+            "create_time,"+
+            "update_time,"+
+            "charset,"+
+            "subscribe_cycle_for_catalog,"+
+            "subscribe_cycle_for_mobile_position,"+
+            "mobile_position_submission_interval,"+
+            "subscribe_cycle_for_alarm,"+
+            "ssrc_check,"+
+            "media_server_id,"+
+            "as_message_channel,"+
+            "broadcast_push_after_ack,"+
+            "geo_coord_sys,"+
+            "server_id,"+
+            "on_line"+
+            " FROM wvp_device WHERE on_line = 1 and server_id = #{serverId}", databaseId = "dm")
     List<Device> getOnlineDevicesByServerId(@Param("serverId") String serverId);
 
     @Select("SELECT " +
@@ -277,8 +324,6 @@ public interface DeviceMapper {
             "port,"+
             "host_address,"+
             "expires,"+
-            "register_time,"+
-            "keepalive_time,"+
             "create_time,"+
             "update_time,"+
             "charset,"+
@@ -356,8 +401,6 @@ public interface DeviceMapper {
             ",transport" +
             ",stream_mode" +
             ",on_line" +
-            ",register_time" +
-            ",keepalive_time" +
             ",ip" +
             ",create_time" +
             ",update_time" +
@@ -384,7 +427,7 @@ public interface DeviceMapper {
             ",(SELECT count(0) FROM wvp_device_channel dc WHERE dc.data_type = #{dataType} and dc.data_device_id= de.id) as channel_count " +
             " FROM wvp_device de" +
             " where 1 = 1 "+
-            " <if test='status != null'> AND de.on_line=${status}</if>"+
+            " <if test='status != null'> AND de.on_line=#{status}</if>"+
             " <if test='query != null'> AND (" +
             " coalesce(custom_name, name) LIKE concat('%',#{query},'%') escape '/' " +
             " OR device_id LIKE concat('%',#{query},'%') escape '/' " +
@@ -426,6 +469,12 @@ public interface DeviceMapper {
             " WHERE id in"+
             "<foreach collection='offlineDevices' item='item'  open='(' separator=',' close=')' > #{item.id}</foreach>" +
             " </script>"})
+    @Update(value = {" <script>" +
+            "UPDATE wvp_device " +
+            "SET on_line=0" +
+            " WHERE id in"+
+            "<foreach collection='offlineDevices' item='item'  open='(' separator=',' close=')' > #{item.id}</foreach>" +
+            " </script>"}, databaseId = "dm")
     void offlineByList(List<Device> offlineDevices);
 
 
@@ -444,8 +493,6 @@ public interface DeviceMapper {
             ", port=#{item.port}" +
             ", host_address=#{item.hostAddress}" +
             ", on_line=#{item.onLine}" +
-            ", register_time=#{item.registerTime}" +
-            ", keepalive_time=#{item.keepaliveTime}" +
             ", heart_beat_interval=#{item.heartBeatInterval}" +
             ", position_capability=#{item.positionCapability}" +
             ", heart_beat_count=#{item.heartBeatCount}" +
@@ -459,4 +506,44 @@ public interface DeviceMapper {
             "</foreach>" +
             "</script>"})
     void batchUpdate(List<Device> devices);
+
+    @Select(value = {" <script>" +
+            "SELECT " +
+            "coalesce(custom_name, name) as name, " +
+            "id" +
+            ",device_id" +
+            ",manufacturer" +
+            ",model" +
+            ",firmware" +
+            ",transport" +
+            ",stream_mode" +
+            ",on_line" +
+            ",ip" +
+            ",create_time" +
+            ",update_time" +
+            ",port" +
+            ",expires" +
+            ",subscribe_cycle_for_catalog" +
+            ",subscribe_cycle_for_mobile_position" +
+            ",mobile_position_submission_interval" +
+            ",subscribe_cycle_for_alarm" +
+            ",host_address" +
+            ",charset" +
+            ",ssrc_check" +
+            ",geo_coord_sys" +
+            ",media_server_id" +
+            ",sdp_ip" +
+            ",local_ip" +
+            ",password" +
+            ",as_message_channel" +
+            ",heart_beat_interval" +
+            ",heart_beat_count" +
+            ",position_capability" +
+            ",broadcast_push_after_ack" +
+            ",server_id" +
+            " FROM wvp_device" +
+            " WHERE device_id in"+
+            "<foreach collection='deviceIds' item='item'  open='(' separator=',' close=')' > #{item}</foreach>" +
+            " </script>"})
+    List<Device> queryByDeviceIds(List<String> deviceIds);
 }

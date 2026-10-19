@@ -2,7 +2,8 @@ import {
   add,
   changeChannelAudio,
   deleteDevice,
-  deviceRecord,
+  deviceRecord, getKeepaliveTimeStatistics, getRegisterTimeStatistics,
+  homePosition,
   queryBasicParam,
   queryChannelOne,
   queryChannels,
@@ -12,11 +13,14 @@ import {
   queryDeviceSyncStatus,
   queryDeviceTree,
   queryHasStreamChannels,
+  resetAlarm,
   resetGuard,
+  setBasicParam,
   setGuard,
-  subscribeCatalog,
+  setVideoParamOpt,
+  subscribeCatalog, subscribeForAlarm,
   subscribeMobilePosition,
-  sync,
+  sync, teleboot,
   update,
   updateChannelStreamIdentification,
   updateDeviceTransport
@@ -83,6 +87,26 @@ const actions = {
       })
     })
   },
+  resetAlarm({ commit }, data) {
+    return new Promise((resolve, reject) => {
+      resetAlarm(data).then(response => {
+        const { data: result } = response
+        resolve(result)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  homePosition({ commit }, params) {
+    return new Promise((resolve, reject) => {
+      homePosition(params).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
   subscribeCatalog({ commit }, params) {
     return new Promise((resolve, reject) => {
       subscribeCatalog(params).then(response => {
@@ -103,9 +127,39 @@ const actions = {
       })
     })
   },
-  queryBasicParam({ commit }, deviceId) {
+  subscribeForAlarm({ commit }, params) {
     return new Promise((resolve, reject) => {
-      queryBasicParam(deviceId).then(response => {
+      subscribeForAlarm(params).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  queryBasicParam({ commit }, params) {
+    return new Promise((resolve, reject) => {
+      queryBasicParam(params).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  setBasicParam({ commit }, params) {
+    return new Promise((resolve, reject) => {
+      setBasicParam(params).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  setVideoParamOpt({ commit }, params) {
+    return new Promise((resolve, reject) => {
+      setVideoParamOpt(params).then(response => {
         const { data } = response
         resolve(data)
       }).catch(error => {
@@ -236,6 +290,36 @@ const actions = {
   deleteDevice({ commit }, deviceId) {
     return new Promise((resolve, reject) => {
       deleteDevice(deviceId).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  getKeepaliveTimeStatistics({ commit }, params) {
+    return new Promise((resolve, reject) => {
+      getKeepaliveTimeStatistics(params).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  getRegisterTimeStatistics({ commit }, params) {
+    return new Promise((resolve, reject) => {
+      getRegisterTimeStatistics(params).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  teleboot({ commit }, deviceId) {
+    return new Promise((resolve, reject) => {
+      teleboot(deviceId).then(response => {
         const { data } = response
         resolve(data)
       }).catch(error => {

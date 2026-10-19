@@ -2,6 +2,7 @@ package com.genersoft.iot.vmp.gb28181.service.impl;
 
 import com.alibaba.fastjson2.JSON;
 import com.genersoft.iot.vmp.common.*;
+import com.genersoft.iot.vmp.common.enums.MediaStreamUtil;
 import com.genersoft.iot.vmp.conf.UserSetting;
 import com.genersoft.iot.vmp.gb28181.bean.Device;
 import com.genersoft.iot.vmp.gb28181.dao.DeviceChannelMapper;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
@@ -32,7 +34,7 @@ public class InviteStreamServiceImpl implements IInviteStreamService {
     private final Map<String, List<ErrorCallback<StreamInfo>>> inviteErrorCallbackMap = new ConcurrentHashMap<>();
 
     @Autowired
-    private RedisTemplate<Object, Object> redisTemplate;
+    private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
     private UserSetting userSetting;
@@ -46,16 +48,28 @@ public class InviteStreamServiceImpl implements IInviteStreamService {
     /**
      * 流离开的处理
      */
-    @Async("taskExecutor")
+    @Async
     @EventListener
     public void onApplicationEvent(MediaDepartureEvent event) {
-        if ("rtsp".equals(event.getSchema()) && "rtp".equals(event.getApp())) {
+        if ("rtsp".equals(event.getSchema()) && MediaStreamUtil.isGB28181(event.getApp(), event.getStream())) {
             InviteInfo inviteInfo = getInviteInfoByStream(null, event.getStream());
             if (inviteInfo != null && (inviteInfo.getType() == InviteSessionType.PLAY || inviteInfo.getType() == InviteSessionType.PLAYBACK)) {
-                removeInviteInfo(inviteInfo);
-                Device device = deviceMapper.getDeviceByDeviceId(inviteInfo.getDeviceId());
-                if (device != null) {
-                    deviceChannelMapper.stopPlayById(inviteInfo.getChannelId());
+                if (isStaleStreamDeparture(inviteInfo, event.getCreateStamp())) {
+                    log.info("[流离开] 流实例创建时间早于当前会话，判定为旧会话的迟到注销事件，跳过清理: stream={}, deviceId={}, channelId={}",
+                            event.getStream(), inviteInfo.getDeviceId(), inviteInfo.getChannelId());
+                    return;
+                }
+                try {
+                    if (inviteInfo.getStatus() != InviteSessionStatus.ok) {
+                        removeInviteInfo(inviteInfo);
+                    }
+                    Device device = deviceMapper.getDeviceByDeviceId(inviteInfo.getDeviceId());
+                    if (device != null) {
+                        deviceChannelMapper.stopPlayById(inviteInfo.getChannelId());
+                    }
+                } catch (Exception e) {
+                    log.error("[流离开] 清理Invite异常: deviceId={}, channelId={}, stream={}",
+                            inviteInfo.getDeviceId(), inviteInfo.getChannelId(), inviteInfo.getStream(), e);
                 }
             }
         }
@@ -162,10 +176,14 @@ public class InviteStreamServiceImpl implements IInviteStreamService {
         ScanOptions options = ScanOptions.scanOptions().match(keyPattern).count(20).build();
         try (Cursor<Map.Entry<Object, Object>> cursor = redisTemplate.opsForHash().scan(key, options)) {
             if (cursor.hasNext()) {
-                InviteInfo inviteInfo = (InviteInfo) cursor.next().getValue();
+                Map.Entry<Object, Object> entry = cursor.next();
                 cursor.close();
-                return inviteInfo;
-
+                if (entry.getValue() instanceof InviteInfo) {
+                    return (InviteInfo) entry.getValue();
+                } else {
+                    log.warn("[Redis-InviteInfo] 发现脏数据并清理: key={}, value={}", entry.getKey(), entry.getValue());
+                    redisTemplate.opsForHash().delete(key, entry.getKey());
+                }
             }
         } catch (Exception e) {
             log.error("[Redis-InviteInfo] 查询异常: ", e);
@@ -201,15 +219,21 @@ public class InviteStreamServiceImpl implements IInviteStreamService {
     public void removeInviteInfo(InviteSessionType type, Integer channelId, String stream) {
         String key = VideoManagerConstants.INVITE_PREFIX;
         if (type == null && channelId == null && stream == null) {
-            redisTemplate.opsForHash().delete(key);
+            redisTemplate.delete(key);
             return;
         }
-        InviteInfo inviteInfo = getInviteInfo(type, channelId, stream);
-        if (inviteInfo != null) {
-            String objectKey = inviteInfo.getType() +
-                    ":" + inviteInfo.getChannelId() +
-                    ":" + inviteInfo.getStream();
-            redisTemplate.opsForHash().delete(key, objectKey);
+        String keyPattern = (type != null ? type : "*") + ":" + (channelId != null ? channelId : "*") + ":" + (stream != null ? stream : "*");
+        ScanOptions options = ScanOptions.scanOptions().match(keyPattern).count(20).build();
+        List<Object> objectKeys = new ArrayList<>();
+        try (Cursor<Map.Entry<Object, Object>> cursor = redisTemplate.opsForHash().scan(key, options)) {
+            while (cursor.hasNext()) {
+                objectKeys.add(cursor.next().getKey());
+            }
+        } catch (Exception e) {
+            log.error("[Redis-InviteInfo] 删除异常: ", e);
+        }
+        if (!objectKeys.isEmpty()) {
+            redisTemplate.opsForHash().delete(key, objectKeys.toArray());
         }
     }
 
@@ -229,6 +253,25 @@ public class InviteStreamServiceImpl implements IInviteStreamService {
         List<ErrorCallback<StreamInfo>> callbacks = inviteErrorCallbackMap.computeIfAbsent(key, k -> new CopyOnWriteArrayList<>());
         callbacks.add(callback);
 
+    }
+
+    @Override
+    public boolean onceAndFirst(InviteSessionType type, Integer channelId, String stream, ErrorCallback<StreamInfo> callback) {
+        String key = buildKey(type, channelId, stream);
+        AtomicBoolean first = new AtomicBoolean(false);
+        inviteErrorCallbackMap.computeIfAbsent(key, k -> {
+            first.set(true);
+            List<ErrorCallback<StreamInfo>> callbacks = new CopyOnWriteArrayList<>();
+            callbacks.add(callback);
+            return callbacks;
+        });
+        if (!first.get()) {
+            List<ErrorCallback<StreamInfo>> callbacks = inviteErrorCallbackMap.get(key);
+            if (callbacks != null) {
+                callbacks.add(callback);
+            }
+        }
+        return first.get();
     }
 
     private String buildKey(InviteSessionType type, Integer channelId, String stream) {
@@ -277,7 +320,7 @@ public class InviteStreamServiceImpl implements IInviteStreamService {
     @Override
     public void call(InviteSessionType type, Integer channelId, String stream, int code, String msg, StreamInfo data) {
         String key = buildSubStreamKey(type, channelId, stream);
-        List<ErrorCallback<StreamInfo>> callbacks = inviteErrorCallbackMap.get(key);
+        List<ErrorCallback<StreamInfo>> callbacks = inviteErrorCallbackMap.remove(key);
         if (callbacks == null || callbacks.isEmpty()) {
             return;
         }
@@ -286,7 +329,6 @@ public class InviteStreamServiceImpl implements IInviteStreamService {
                 callback.run(code, msg, data);
             }
         }
-        inviteErrorCallbackMap.remove(key);
     }
 
 
@@ -338,17 +380,50 @@ public class InviteStreamServiceImpl implements IInviteStreamService {
         }
         List<Object> values = redisTemplate.opsForHash().values(key);
         for (Object value : values) {
-            InviteInfo inviteInfo = (InviteInfo)value;
-            if (inviteInfo.getStreamInfo() != null) {
-                continue;
-            }
-            if (inviteInfo.getCreateTime() == null || inviteInfo.getExpirationTime() == 0) {
-                removeInviteInfo(inviteInfo);
-            }
-            long time = inviteInfo.getCreateTime() + inviteInfo.getExpirationTime();
-            if (System.currentTimeMillis() > time) {
-                removeInviteInfo(inviteInfo);
+            try {
+                InviteInfo inviteInfo = (InviteInfo)value;
+                if (inviteInfo.getStreamInfo() != null) {
+                    continue;
+                }
+                if (inviteInfo.getCreateTime() == null || inviteInfo.getExpirationTime() == null) {
+                    removeInviteInfo(inviteInfo);
+                    continue;
+                }
+                long time = inviteInfo.getCreateTime() + inviteInfo.getExpirationTime();
+                if (System.currentTimeMillis() > time) {
+                    removeInviteInfo(inviteInfo);
+                }
+            } catch (Exception e) {
+                log.error("[定时清理Invite] 处理异常，尝试删除该数据: {}", value, e);
+                removeInviteInfoByValue(value);
             }
         }
+    }
+
+    private void removeInviteInfoByValue(Object value) {
+        if (value instanceof InviteInfo) {
+            removeInviteInfo((InviteInfo) value);
+        } else {
+            String key = VideoManagerConstants.INVITE_PREFIX;
+            redisTemplate.opsForHash().entries(key).forEach((k, v) -> {
+                if (v.equals(value)) {
+                    redisTemplate.opsForHash().delete(key, k);
+                }
+            });
+        }
+    }
+
+    @Override
+    public boolean isStaleStreamDeparture(InviteInfo inviteInfo, Long streamCreateStamp) {
+        if (inviteInfo == null || inviteInfo.getCreateTime() == null || streamCreateStamp == null || streamCreateStamp <= 0) {
+            return false;
+        }
+        long streamCreateMs = streamCreateStamp * 1000L;
+        // 时间戳与当前时间偏差过大(超过24小时)，认为数据异常，不做判断，保持原有清理逻辑
+        if (Math.abs(streamCreateMs - System.currentTimeMillis()) > 24 * 3600 * 1000L) {
+            return false;
+        }
+        // 流实例创建时间比当前会话创建时间至少早2秒(容忍ZLM与WVP的时钟偏差)，说明该注销事件属于旧会话
+        return inviteInfo.getCreateTime() - streamCreateMs > 2000L;
     }
 }

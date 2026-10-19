@@ -4,7 +4,7 @@ import com.genersoft.iot.vmp.common.StreamInfo;
 import com.genersoft.iot.vmp.conf.exception.SsrcTransactionNotFoundException;
 import com.genersoft.iot.vmp.gb28181.bean.*;
 import com.genersoft.iot.vmp.gb28181.bean.Device;
-import com.genersoft.iot.vmp.gb28181.bean.DeviceAlarm;
+import com.genersoft.iot.vmp.gb28181.bean.DeviceAlarmNotify;
 import com.genersoft.iot.vmp.gb28181.bean.DeviceChannel;
 import com.genersoft.iot.vmp.gb28181.event.SipSubscribe;
 import com.genersoft.iot.vmp.media.event.hook.HookSubscribe;
@@ -94,7 +94,7 @@ public interface ISIPCommander {
 	 */
 	void streamByeCmd(Device device, String channelId, String app, String stream, String callId, SipSubscribe.Event okEvent) throws InvalidArgumentException, SipException, ParseException, SsrcTransactionNotFoundException;
 
-	void talkStreamCmd(MediaServer mediaServerItem, SendRtpInfo sendRtpItem, Device device, DeviceChannel channelId, String callId, HookSubscribe.Event event, HookSubscribe.Event eventForPush, SipSubscribe.Event okEvent, SipSubscribe.Event errorEvent, Long timeout) throws InvalidArgumentException, SipException, ParseException;
+	void talkStreamCmd(MediaServer mediaServerItem, SendRtpInfo sendRtpItem, String ySsrc, Device device, DeviceChannel channelId, String callId, HookSubscribe.Event event, HookSubscribe.Event eventForPush, SipSubscribe.Event okEvent, SipSubscribe.Event errorEvent, Long timeout) throws InvalidArgumentException, SipException, ParseException;
 
 	void streamByeCmd(Device device, String channelId, SipTransactionInfo sipTransactionInfo, SipSubscribe.Event okEvent) throws InvalidArgumentException, SipException, ParseException, SsrcTransactionNotFoundException;
 
@@ -196,6 +196,11 @@ public interface ISIPCommander {
 	void deviceBasicConfigCmd(Device device, BasicParam basicParam, ErrorCallback<String> callback) throws InvalidArgumentException, SipException, ParseException;
 
 	/**
+	 * 设备配置命令：VideoParamOpt
+	 */
+	void deviceVideoParamConfigCmd(Device device, VideoParamOpt videoParamOpt, ErrorCallback<String> callback) throws InvalidArgumentException, SipException, ParseException;
+
+	/**
 	 * 查询设备状态
 	 *
 	 * @param device 视频设备
@@ -248,9 +253,9 @@ public interface ISIPCommander {
 	 *
 	 * @param device 		视频设备
 	 * @param channelId		通道编码（可选）
-	 * @param configType	配置类型：
+	 * @param configClass	配置类型：
 	 */
-	void deviceConfigQuery(Device device, String channelId, String configType,  ErrorCallback<Object> callback) throws InvalidArgumentException, SipException, ParseException;
+	<T extends DeviceConfigAware> void deviceConfigQuery(Device device, String channelId, Class<T> configClass, ErrorCallback<T> callback) throws InvalidArgumentException, SipException, ParseException;
 
 	/**
 	 * 查询设备预置位置
@@ -264,7 +269,7 @@ public interface ISIPCommander {
 	 *
 	 * @param device 视频设备
 	 */
-	void mobilePostitionQuery(Device device, SipSubscribe.Event errorEvent) throws InvalidArgumentException, SipException, ParseException;
+	void mobilePositionQuery(Device device, SipSubscribe.Event errorEvent) throws InvalidArgumentException, SipException, ParseException;
 
 	/**
 	 * 订阅、取消订阅移动位置
@@ -276,15 +281,8 @@ public interface ISIPCommander {
 
 	/**
 	 * 订阅、取消订阅报警信息
-	 * @param device		视频设备
-	 * @param expires		订阅过期时间（0 = 取消订阅）
-	 * @param startPriority	报警起始级别（可选）
-	 * @param endPriority	报警终止级别（可选）
-	 * @param startTime		报警发生起始时间（可选）
-	 * @param endTime		报警发生终止时间（可选）
-	 * @return				true = 命令发送成功
 	 */
-	void alarmSubscribe(Device device, int expires, String startPriority, String endPriority, String alarmMethod, String startTime, String endTime) throws InvalidArgumentException, SipException, ParseException;
+	SIPRequest alarmSubscribe(Device device, SipTransactionInfo sipTransactionInfo, SipSubscribe.Event okEvent, SipSubscribe.Event errorEvent) throws InvalidArgumentException, SipException, ParseException;
 
 	/**
 	 * 订阅、取消订阅目录信息
@@ -300,7 +298,7 @@ public interface ISIPCommander {
 	 * @param channelId 通道id
 	 * @param cmdString 前端控制指令串
 	 */
-	void dragZoomCmd(Device device, String channelId, String cmdString, ErrorCallback<String> callback) throws InvalidArgumentException, SipException, ParseException;
+	void dragZoomCmd(Device device, String channelId, String cmdString) throws InvalidArgumentException, SipException, ParseException;
 
 
     void playbackControlCmd(Device device, DeviceChannel channel, String stream, String content, SipSubscribe.Event errorEvent, SipSubscribe.Event okEvent) throws SipException, InvalidArgumentException, ParseException;
@@ -311,7 +309,7 @@ public interface ISIPCommander {
 	 * @param deviceAlarm 报警信息信息
 	 * @return
 	 */
-	void sendAlarmMessage(Device device, DeviceAlarm deviceAlarm) throws InvalidArgumentException, SipException, ParseException;
+	void sendAlarmMessage(Device device, DeviceAlarmNotify deviceAlarm) throws InvalidArgumentException, SipException, ParseException;
 
 
 }

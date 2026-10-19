@@ -15,6 +15,7 @@ import com.genersoft.iot.vmp.gb28181.transmit.event.request.SIPRequestProcessorP
 import com.genersoft.iot.vmp.media.bean.MediaInfo;
 import com.genersoft.iot.vmp.media.bean.MediaServer;
 import com.genersoft.iot.vmp.media.service.IMediaServerService;
+import com.genersoft.iot.vmp.service.IReceiveRtpServerService;
 import com.genersoft.iot.vmp.service.ISendRtpServerService;
 import com.genersoft.iot.vmp.service.redisMsg.IRedisRpcService;
 import com.genersoft.iot.vmp.storager.IRedisCatchStorage;
@@ -85,6 +86,9 @@ public class ByeRequestProcessor extends SIPRequestProcessorParent implements In
 	@Autowired
 	private IRedisRpcService redisRpcService;
 
+	@Autowired
+	private IReceiveRtpServerService receiveRtpServerService;
+
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
@@ -127,9 +131,6 @@ public class ByeRequestProcessor extends SIPRequestProcessorParent implements In
 						sendRtpServerService.deleteByCallId(callIdHeader.getCallId());
 						if (mediaServer != null) {
 							mediaServerService.stopSendRtp(mediaServer, sendRtpItem.getApp(), sendRtpItem.getStream(), sendRtpItem.getSsrc());
-							if (userSetting.getUseCustomSsrcForParentInvite()) {
-								mediaServerService.releaseSsrc(mediaServer.getId(), sendRtpItem.getSsrc());
-							}
 						}
 					}
 				}else {
@@ -139,9 +140,6 @@ public class ByeRequestProcessor extends SIPRequestProcessorParent implements In
 				MediaServer mediaInfo = mediaServerService.getOne(sendRtpItem.getMediaServerId());
 				sendRtpServerService.delete(sendRtpItem);
 				mediaServerService.stopSendRtp(mediaInfo, sendRtpItem.getApp(), sendRtpItem.getStream(), sendRtpItem.getSsrc());
-				if (userSetting.getUseCustomSsrcForParentInvite()) {
-					mediaServerService.releaseSsrc(mediaInfo.getId(), sendRtpItem.getSsrc());
-				}
 			}
 			if (sendRtpItem.getServerId().equals(userSetting.getServerId())) {
 				MediaServer mediaServer = mediaServerService.getOne(sendRtpItem.getMediaServerId());
@@ -223,13 +221,17 @@ public class ByeRequestProcessor extends SIPRequestProcessorParent implements In
 				case PLAY:
 				case PLAYBACK:
 				case DOWNLOAD:
-					InviteInfo inviteInfo = inviteStreamService.getInviteInfoByDeviceAndChannel(InviteSessionType.PLAY, channel.getId());
-					if (inviteInfo != null) {
-						deviceChannelService.stopPlay(channel.getId());
-						inviteStreamService.removeInviteInfo(inviteInfo);
-						if (inviteInfo.getStreamInfo() != null) {
-							mediaServerService.closeRTPServer(inviteInfo.getStreamInfo().getMediaServer(), inviteInfo.getStreamInfo().getStream());
+					try {
+						InviteInfo inviteInfo = inviteStreamService.getInviteInfoByDeviceAndChannel(ssrcTransaction.getType(), channel.getId());
+						if (inviteInfo != null) {
+							deviceChannelService.stopPlay(channel.getId());
+							inviteStreamService.removeInviteInfo(inviteInfo);
+							if (inviteInfo.getStreamInfo() != null) {
+								receiveRtpServerService.closeRTPServer(inviteInfo.getStreamInfo().getMediaServer(), inviteInfo.getStreamInfo().getApp(), inviteInfo.getStreamInfo().getStream());
+							}
 						}
+					} catch (Exception e) {
+						log.error("[BYE处理] 清理Invite异常: type={}, channelId={}", ssrcTransaction.getType(), channel.getId(), e);
 					}
 					break;
 				case BROADCAST:
@@ -246,11 +248,6 @@ public class ByeRequestProcessor extends SIPRequestProcessorParent implements In
 						audioBroadcastManager.del(channel.getId());
 					}
 					break;
-			}
-			// 释放ssrc
-			MediaServer mediaServerItem = mediaServerService.getOne(ssrcTransaction.getMediaServerId());
-			if (mediaServerItem != null) {
-				mediaServerService.releaseSsrc(mediaServerItem.getId(), ssrcTransaction.getSsrc());
 			}
 			sessionManager.removeByCallId(ssrcTransaction.getCallId());
 		}

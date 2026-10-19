@@ -20,7 +20,7 @@ public class UserApiKeyServiceImpl implements IUserApiKeyService {
     UserApiKeyMapper userApiKeyMapper;
 
     @Autowired
-    private RedisTemplate<Object, Object> redisTemplate;
+    private RedisTemplate<String, Object> redisTemplate;
 
     @Override
     public int addApiKey(UserApiKey userApiKey) {
@@ -33,9 +33,9 @@ public class UserApiKeyServiceImpl implements IUserApiKeyService {
     }
 
     @Override
-    public PageInfo<UserApiKey> getUserApiKeys(int page, int count) {
+    public PageInfo<UserApiKey> getUserApiKeys(int page, int count, Integer userId) {
         PageHelper.startPage(page, count);
-        List<UserApiKey> userApiKeys = userApiKeyMapper.getUserApiKeys();
+        List<UserApiKey> userApiKeys = userApiKeyMapper.getUserApiKeys(userId);
         return new PageInfo<>(userApiKeys);
     }
 

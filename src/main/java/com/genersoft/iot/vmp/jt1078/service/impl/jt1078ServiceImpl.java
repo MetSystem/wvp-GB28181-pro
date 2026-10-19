@@ -4,10 +4,10 @@ import com.genersoft.iot.vmp.common.CommonCallback;
 import com.genersoft.iot.vmp.common.StreamInfo;
 import com.genersoft.iot.vmp.common.VideoManagerConstants;
 import com.genersoft.iot.vmp.conf.DynamicTask;
-import com.genersoft.iot.vmp.conf.ftpServer.FtpFileSystemFactory;
-import com.genersoft.iot.vmp.conf.ftpServer.FtpSetting;
 import com.genersoft.iot.vmp.conf.UserSetting;
 import com.genersoft.iot.vmp.conf.exception.ControllerException;
+import com.genersoft.iot.vmp.conf.ftpServer.FtpFileSystemFactory;
+import com.genersoft.iot.vmp.conf.ftpServer.FtpSetting;
 import com.genersoft.iot.vmp.conf.ftpServer.UserManager;
 import com.genersoft.iot.vmp.gb28181.bean.CommonGBChannel;
 import com.genersoft.iot.vmp.gb28181.service.IGbChannelService;
@@ -30,10 +30,12 @@ import com.genersoft.iot.vmp.vmanager.bean.ErrorCode;
 import com.genersoft.iot.vmp.vmanager.bean.WVPResult;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import jakarta.servlet.ServletOutputStream;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.ftpserver.usermanager.impl.BaseUser;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
@@ -42,13 +44,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.Assert;
 
-import javax.annotation.PostConstruct;
-import javax.servlet.ServletOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 @Slf4j
@@ -64,7 +66,7 @@ public class jt1078ServiceImpl implements Ijt1078Service {
     private JT1078Template jt1078Template;
 
     @Autowired
-    private RedisTemplate<Object, Object> redisTemplate;
+    private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
     private IGbChannelService channelService;
@@ -87,9 +89,9 @@ public class jt1078ServiceImpl implements Ijt1078Service {
     @Autowired
     private FtpDownloadManager downloadManager;
 
-    // 服务启动后五分钟内没有尽量连接的设备设置为离线
-    @PostConstruct
-    public void init(){
+    // 服务启动后五分钟内没有连接的设备设置为离线
+    @EventListener(ApplicationReadyEvent.class)
+    public void onApplicationReady(){
         // 检查session与在线终端是是否对应 不对应则设置终端离线
         List<JTDevice> deviceList = jtDeviceMapper.getDeviceList(null, true);
         if (deviceList.isEmpty()) {
@@ -117,7 +119,7 @@ public class jt1078ServiceImpl implements Ijt1078Service {
     /**
      * 流到来的处理
      */
-    @Async("taskExecutor")
+    @Async
     @org.springframework.context.event.EventListener
     public void onApplicationEvent(MediaArrivalEvent event) {
 
@@ -126,7 +128,7 @@ public class jt1078ServiceImpl implements Ijt1078Service {
     /**
      * 流离开的处理
      */
-    @Async("taskExecutor")
+    @Async
     @EventListener
     public void onApplicationEvent(MediaDepartureEvent event) {
 
@@ -135,7 +137,7 @@ public class jt1078ServiceImpl implements Ijt1078Service {
     /**
      * 设备更新的通知
      */
-    @Async("taskExecutor")
+    @Async
     @EventListener
     public void onApplicationEvent(DeviceUpdateEvent event) {
         JTDevice device = event.getDevice();
@@ -161,7 +163,7 @@ public class jt1078ServiceImpl implements Ijt1078Service {
     /**
      * 位置更新的通知
      */
-    @Async("taskExecutor")
+    @Async
     @EventListener
     public void onApplicationEvent(JTPositionEvent event) {
         if (event.getPhoneNumber() == null || event.getPositionInfo() == null

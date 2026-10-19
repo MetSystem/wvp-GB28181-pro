@@ -38,6 +38,12 @@ export const constantRoutes = [
   },
 
   {
+    path: '/forceChangePassword',
+    component: () => import('@/views/user/forceChangePassword'),
+    hidden: true
+  },
+
+  {
     path: '/404',
     component: () => import('@/views/404'),
     hidden: true
@@ -75,7 +81,7 @@ export const constantRoutes = [
       path: '/channel',
       name: 'Channel',
       component: () => import('@/views/channel/index'),
-      meta: { title: '通道列表', icon: 'channelManger'}
+      meta: { title: '通道列表', icon: 'channelManger' }
     },
     {
       path: '/channel/record/:channelId',
@@ -84,6 +90,17 @@ export const constantRoutes = [
       meta: { title: '设备录像' }
     }
     ]
+  },
+  {
+    path: '/map',
+    component: Layout,
+    redirect: '/map',
+    children: [{
+      path: '',
+      name: 'Map',
+      component: () => import('@/views/map/index'),
+      meta: { title: '电子地图', icon: 'map' }
+    }]
   },
   {
     path: '/device',
@@ -149,6 +166,19 @@ export const constantRoutes = [
         name: 'Group',
         component: () => import('@/views/channel/group/index'),
         meta: { title: '业务分组', icon: 'tree' }
+      }
+    ]
+  },
+  {
+    path: '/alarm',
+    component: Layout,
+    redirect: '/alarm',
+    children: [
+      {
+        path: '',
+        name: 'AlarmManage',
+        component: () => import('@/views/alarm/index'),
+        meta: { title: '报警管理', icon: 'el-icon-bell' }
       }
     ]
   },
@@ -264,15 +294,10 @@ export const constantRoutes = [
     ]
   },
   {
-    path: '/play/wasm/:url',
-    name: 'wasmPlayer',
+    path: '/play/share',
+    name: 'sharePlayer',
     hidden: true,
-    component: () => import('@/views/common/jessibuca.vue')
-  },
-  {
-    path: '/play/rtc/:url',
-    name: 'rtcPlayer',
-    component: () => import('@/views/common/rtcPlayer.vue')
+    component: () => import('@/views/common/share.vue')
   },
   // 404 page must be placed at the end !!!
   { path: '*', redirect: '/404', hidden: true }

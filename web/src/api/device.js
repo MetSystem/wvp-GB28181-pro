@@ -5,7 +5,10 @@ import request from '@/utils/request'
 export function queryDeviceSyncStatus(deviceId) {
   return request({
     method: 'get',
-    url: `/api/device/query/${deviceId}/sync_status/`
+    url: `/api/device/query/sync_status`,
+    params: {
+      deviceId: deviceId
+    }
   })
 }
 
@@ -66,6 +69,22 @@ export function resetGuard(deviceId) {
   })
 }
 
+export function resetAlarm(data) {
+  return request({
+    method: 'get',
+    url: '/api/device/control/reset_alarm',
+    params: data
+  })
+}
+
+export function homePosition(params) {
+  return request({
+    method: 'get',
+    url: '/api/device/control/home_position',
+    params
+  })
+}
+
 export function subscribeCatalog(params) {
   const { id, cycle } = params
   return request({
@@ -90,11 +109,39 @@ export function subscribeMobilePosition(params) {
     }
   })
 }
-
-export function queryBasicParam(deviceId) {
+export function subscribeForAlarm(params) {
+  const { id, cycle } = params
   return request({
     method: 'get',
-    url: `/api/device/config/query/${deviceId}/BasicParam`
+    url: '/api/device/query/subscribe/alarm',
+    params: {
+      id: id,
+      cycle: cycle
+    }
+  })
+}
+
+export function queryBasicParam(params) {
+  return request({
+    method: 'get',
+    url: '/api/device/config/query/basicParam',
+    params: params
+  })
+}
+
+export function setBasicParam(params) {
+  return request({
+    method: 'get',
+    url: '/api/device/config/set/basicParam',
+    params
+  })
+}
+
+export function setVideoParamOpt(params) {
+  return request({
+    method: 'get',
+    url: '/api/device/config/set/videoParamOpt',
+    params
   })
 }
 
@@ -238,6 +285,49 @@ export function queryDeviceTree(params, deviceId) {
       parentId: parentId,
       onlyCatalog: onlyCatalog
     }
+  })
+}
+export function getKeepaliveTimeStatistics({ deviceId, count }) {
+  return request({
+    method: 'get',
+    url: '/api/device/query/statistics/keepalive',
+    params: {
+      deviceId: deviceId,
+      count: count
+    }
+  })
+}
+export function getRegisterTimeStatistics({ deviceId, count }) {
+  return request({
+    method: 'get',
+    url: '/api/device/query/statistics/register',
+    params: {
+      deviceId: deviceId,
+      count: count
+    }
+  })
+}
+
+export function dragZoomIn(params) {
+  return request({
+    method: 'get',
+    url: '/api/device/control/drag_zoom/zoom_in',
+    params
+  })
+}
+
+export function dragZoomOut(params) {
+  return request({
+    method: 'get',
+    url: '/api/device/control/drag_zoom/zoom_out',
+    params
+  })
+}
+
+export function teleboot(deviceId) {
+  return request({
+    method: 'get',
+    url: `/api/device/control/teleboot/${deviceId}`
   })
 }
 

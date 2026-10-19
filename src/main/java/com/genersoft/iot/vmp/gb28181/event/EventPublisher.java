@@ -2,10 +2,12 @@ package com.genersoft.iot.vmp.gb28181.event;
 
 import com.genersoft.iot.vmp.conf.UserSetting;
 import com.genersoft.iot.vmp.gb28181.bean.CommonGBChannel;
-import com.genersoft.iot.vmp.gb28181.bean.DeviceAlarm;
+import com.genersoft.iot.vmp.gb28181.bean.DeviceAlarmNotify;
 import com.genersoft.iot.vmp.gb28181.bean.MobilePosition;
 import com.genersoft.iot.vmp.gb28181.bean.Platform;
-import com.genersoft.iot.vmp.gb28181.event.alarm.AlarmEvent;
+import com.genersoft.iot.vmp.gb28181.event.alarm.DeviceAlarmEvent;
+import com.genersoft.iot.vmp.gb28181.event.channel.ChannelEvent;
+import com.genersoft.iot.vmp.gb28181.event.device.DeviceOfflineEvent;
 import com.genersoft.iot.vmp.gb28181.event.subscribe.catalog.CatalogEvent;
 import com.genersoft.iot.vmp.gb28181.event.subscribe.mobilePosition.MobilePositionEvent;
 import com.genersoft.iot.vmp.media.bean.MediaServer;
@@ -17,10 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * @description:Event事件通知推送器，支持推送在线事件、离线事件
@@ -42,11 +41,10 @@ public class EventPublisher {
 
 	/**
 	 * 设备报警事件
-	 * @param deviceAlarm
 	 */
-	public void deviceAlarmEventPublish(DeviceAlarm deviceAlarm) {
-		AlarmEvent alarmEvent = new AlarmEvent(this);
-		alarmEvent.setAlarmInfo(deviceAlarm);
+	public void deviceAlarmEventPublish(List<DeviceAlarmNotify> deviceAlarmList) {
+		DeviceAlarmEvent alarmEvent = new DeviceAlarmEvent(this);
+		alarmEvent.setDeviceAlarmList(deviceAlarmList);
 		applicationEventPublisher.publishEvent(alarmEvent);
 	}
 
@@ -62,11 +60,30 @@ public class EventPublisher {
 		applicationEventPublisher.publishEvent(outEvent);
 	}
 
+	public void channelEventPublish(CommonGBChannel commonGBChannel, ChannelEvent.ChannelEventMessageType type) {
+        channelEventPublish(Collections.singletonList(commonGBChannel), type);
+	}
+
+	public void channelEventPublishForUpdate(CommonGBChannel commonGBChannel, CommonGBChannel deviceChannelForOld) {
+        log.info("[通道改变内部分发-更新] {}", commonGBChannel.getGbDeviceId());
+        ChannelEvent channelEvent = ChannelEvent.getInstanceForUpdate(this, Collections.singletonList(commonGBChannel), Collections.singletonList(deviceChannelForOld));
+        applicationEventPublisher.publishEvent(channelEvent);
+	}
+
+	public void channelEventPublishForUpdate(List<CommonGBChannel> channelList, List<CommonGBChannel> channelListForOld) {
+        log.info("[通道改变内部分发-更新] 数量： {}", channelList.size());
+        ChannelEvent channelEvent = ChannelEvent.getInstanceForUpdate(this, channelList, channelListForOld);
+        applicationEventPublisher.publishEvent(channelEvent);
+	}
+
+    public void channelEventPublish(List<CommonGBChannel> channelList, ChannelEvent.ChannelEventMessageType type) {
+        log.info("[通道改变内部分发-{}] 数量： {}", type, channelList.size());
+		ChannelEvent channelEvent = ChannelEvent.getInstance(this, type, channelList);
+		applicationEventPublisher.publishEvent(channelEvent);
+	}
 
 	public void catalogEventPublish(Platform platform, CommonGBChannel deviceChannel, String type) {
-		List<CommonGBChannel> deviceChannelList = new ArrayList<>();
-		deviceChannelList.add(deviceChannel);
-		catalogEventPublish(platform, deviceChannelList, type);
+		catalogEventPublish(platform, Collections.singletonList(deviceChannel), type);
 	}
 	public void catalogEventPublish(Platform platform, List<CommonGBChannel> deviceChannels, String type) {
 		if (platform != null && !userSetting.getServerId().equals(platform.getServerId())) {
@@ -98,9 +115,22 @@ public class EventPublisher {
 
 	public void mobilePositionEventPublish(MobilePosition mobilePosition) {
 		MobilePositionEvent event = new MobilePositionEvent(this);
-		event.setMobilePosition(mobilePosition);
+		event.setMobilePositionList(List.of(mobilePosition));
 		applicationEventPublisher.publishEvent(event);
 	}
+
+	public void mobilePositionsEventPublish(List<? extends MobilePosition> mobilePositionList) {
+		MobilePositionEvent event = new MobilePositionEvent(this);
+		event.setMobilePositionList(mobilePositionList);
+		applicationEventPublisher.publishEvent(event);
+	}
+
+
+    public void deviceOfflineEventPublish(Set<String> deviceIds) {
+		DeviceOfflineEvent event = new DeviceOfflineEvent(this);
+		event.setDeviceIds(deviceIds);
+		applicationEventPublisher.publishEvent(event);
+    }
 
 
 }

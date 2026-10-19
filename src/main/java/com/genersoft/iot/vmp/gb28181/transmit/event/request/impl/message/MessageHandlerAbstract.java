@@ -12,6 +12,7 @@ import gov.nist.javax.sip.message.SIPRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.dom4j.Element;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 
 import javax.sip.InvalidArgumentException;
 import javax.sip.RequestEvent;
@@ -62,6 +63,11 @@ public abstract class MessageHandlerAbstract extends SIPRequestProcessorParent i
             messageHandler.handForDevice(evt, device, element);
         }else {
             handMessageEvent(element, null);
+            try {
+                responseAck((SIPRequest) evt.getRequest(), Response.OK);
+            } catch (SipException | InvalidArgumentException | ParseException e) {
+                log.error("[命令发送失败] 回复200 OK: {}", e.getMessage());
+            }
         }
     }
 
@@ -71,12 +77,17 @@ public abstract class MessageHandlerAbstract extends SIPRequestProcessorParent i
         IMessageHandler messageHandler = messageHandlerMap.get(cmd);
         if (messageHandler != null) {
             messageHandler.handForPlatform(evt, parentPlatform, element);
+        }else {
+            try {
+                responseAck((SIPRequest) evt.getRequest(), Response.OK);
+            } catch (SipException | InvalidArgumentException | ParseException e) {
+                log.error("[命令发送失败] 回复200 OK: {}", e.getMessage());
+            }
         }
     }
 
-
+    @Async
     public void handMessageEvent(Element element, Object data) {
-
         String cmd = getText(element, "CmdType");
         String sn = getText(element, "SN");
         MessageEvent<Object> subscribe = (MessageEvent<Object>)messageSubscribe.getSubscribe(cmd + sn);
@@ -87,7 +98,9 @@ public abstract class MessageHandlerAbstract extends SIPRequestProcessorParent i
             }else {
                 subscribe.getCallback().run(ErrorCode.ERROR100.getCode(), ErrorCode.ERROR100.getMsg(), result);
             }
-            messageSubscribe.removeSubscribe(cmd + sn);
+            if (!subscribe.isKeepAlive()) {
+                messageSubscribe.removeSubscribe(cmd + sn);
+            }
         }
     }
 }

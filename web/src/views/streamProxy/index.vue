@@ -9,7 +9,7 @@
             placeholder="关键字"
             prefix-icon="el-icon-search"
             clearable
-            @input="getStreamProxyList"
+            @input="queryList"
           />
         </el-form-item>
         <el-form-item label="流媒体">
@@ -18,7 +18,7 @@
             style="margin-right: 1rem;"
             placeholder="请选择"
             default-first-option
-            @change="getStreamProxyList"
+            @change="queryList"
           >
             <el-option label="全部" value="" />
             <el-option
@@ -35,7 +35,7 @@
             style="margin-right: 1rem;"
             placeholder="请选择"
             default-first-option
-            @change="getStreamProxyList"
+            @change="queryList"
           >
             <el-option label="全部" value="" />
             <el-option label="正在拉流" value="true" />
@@ -49,7 +49,7 @@
           <el-button icon="el-icon-refresh-right" circle @click="refresh()" />
         </el-form-item>
       </el-form>
-      <devicePlayer ref="devicePlayer" />
+      <streamProxyPlayer ref="streamProxyPlayer" />
       <el-table size="small" :data="streamProxyList" style="width: 100%" height="calc(100% - 64px)">
         <el-table-column prop="app" label="流应用名" min-width="120" show-overflow-tooltip />
         <el-table-column prop="stream" label="流ID" min-width="120" show-overflow-tooltip />
@@ -124,14 +124,14 @@
 </template>
 
 <script>
-import devicePlayer from '../dialog/devicePlayer.vue'
+import streamProxyPlayer from './player.vue'
 import StreamProxyEdit from './edit.vue'
 import Vue from 'vue'
 
 export default {
   name: 'Proxy',
   components: {
-    devicePlayer,
+    streamProxyPlayer,
     StreamProxyEdit
   },
   data() {
@@ -189,6 +189,11 @@ export default {
       this.count = val
       this.getStreamProxyList()
     },
+    queryList: function() {
+      this.currentPage = 1
+      this.total = 0
+      this.getStreamProxyList()
+    },
     getStreamProxyList: function() {
       this.$store.dispatch('streamProxy/queryList', {
         page: this.currentPage,
@@ -219,8 +224,6 @@ export default {
     edit: function(row) {
       if (row.enableDisableNoneReader) {
         this.$set(row, 'noneReader', 1)
-      } else if (row.enableRemoveNoneReader) {
-        this.$set(row, 'noneReader', 2)
       } else {
         this.$set(row, 'noneReader', 0)
       }
@@ -234,13 +237,14 @@ export default {
       row.playLoading = true
       this.$store.dispatch('streamProxy/play', row.id)
         .then((data) => {
-          this.$refs.devicePlayer.openDialog('streamPlay', null, null, {
-            streamInfo: data,
-            hasAudio: true
-          })
+          this.$refs.streamProxyPlayer.openDialog(data, true)
         })
         .catch((error) => {
-          console.log(error)
+          this.$message({
+            showClose: true,
+            message: error,
+            type: 'error'
+          })
         })
         .finally(() => {
           row.playLoading = false
@@ -248,14 +252,15 @@ export default {
     },
     stopPlay: function(row) {
       this.$store.dispatch('streamProxy/stopPlay', row.id)
-        .then((data) => {
-          this.$refs.devicePlayer.openDialog('streamPlay', null, null, {
-            streamInfo: data,
-            hasAudio: true
-          })
+        .then(() => {
+          this.getStreamProxyList()
         })
         .catch((error) => {
-          console.log(error)
+          this.$message({
+            showClose: true,
+            message: error,
+            type: 'error'
+          })
         })
     },
     queryCloudRecords: function(row) {
@@ -274,6 +279,13 @@ export default {
               message: '删除成功'
             })
             this.initData()
+          })
+          .catch((error) => {
+            this.$message({
+              showClose: true,
+              message: error,
+              type: 'error'
+            })
           })
       }).catch(() => {
       })

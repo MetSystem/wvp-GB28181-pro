@@ -12,6 +12,7 @@ import com.genersoft.iot.vmp.service.bean.MessageForPushChannel;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public interface IRedisCatchStorage {
 
@@ -79,6 +80,11 @@ public interface IRedisCatchStorage {
      */
     Device getDevice(String deviceId);
 
+    /**
+     * 获取Device
+     */
+    List<Device> getDeviceList(Set<String> deviceIds);
+
     void resetAllCSEQ();
 
     void updateGpsMsgInfo(GPSMsgInfo gpsMsgInfo);
@@ -97,16 +103,12 @@ public interface IRedisCatchStorage {
 
     void addNetInfo(Map<String, Double> networkInterfaces);
 
-    void sendMobilePositionMsg(JSONObject jsonObject);
-
     void sendStreamPushRequestedMsg(MessageForPushChannel messageForPushChannel);
 
     /**
      * 判断设备状态
-     * @param deviceId 设备ID
-     * @return
      */
-    public boolean deviceIsOnline(String deviceId);
+    boolean deviceIsOnline(String deviceId);
 
     /**
      * 存储推流的鉴权信息
@@ -182,5 +184,11 @@ public interface IRedisCatchStorage {
 
     String chooseOneServer(String serverId);
 
+    void updateDeviceKeepaliveTimeStamp(List<Device> deviceList);
 
+    List<Long> getDeviceKeepaliveTimeStamp(String deviceId, Integer count);
+
+    void updateDeviceRegisterTimeStamp(List<Device> deviceList);
+
+    List<Long> getDeviceRegisterTimeStamp(String deviceId, Integer count);
 }

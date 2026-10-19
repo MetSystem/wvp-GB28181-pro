@@ -13,6 +13,7 @@ import org.dom4j.DocumentException;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.util.ObjectUtils;
 
 import javax.sip.*;
@@ -30,10 +31,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-/**    
+/**
  * @description:处理接收IPCamera发来的SIP协议请求消息
  * @author: songww
- * @date:   2020年5月3日 下午4:42:22     
+ * @date:   2020年5月3日 下午4:42:22
  */
 @Slf4j
 public abstract class SIPRequestProcessorParent {
@@ -77,12 +78,23 @@ public abstract class SIPRequestProcessorParent {
 		return responseAck(sipRequest, statusCode, null);
 	}
 
+	@Async
+	public void responseAckAsync(SIPRequest sipRequest, int statusCode) throws SipException, InvalidArgumentException, ParseException {
+		responseAck(sipRequest, statusCode, null);
+	}
+
 	public SIPResponse responseAck(SIPRequest sipRequest, int statusCode, String msg) throws SipException, InvalidArgumentException, ParseException {
 		return responseAck(sipRequest, statusCode, msg, null);
 	}
 
 
 	public SIPResponse responseAck(SIPRequest sipRequest, int statusCode, String msg, ResponseAckExtraParam responseAckExtraParam) throws SipException, InvalidArgumentException, ParseException {
+		// 全局防御：校验SIP状态码合法性，防止非法状态码传入JAIN-SIP导致IllegalArgumentException
+		if (statusCode < 100 || statusCode > 699) {
+			log.error("[SIP响应] 非法状态码: {}，已替换为500 Server Internal Error。原始消息: {}", statusCode, msg);
+			statusCode = Response.SERVER_INTERNAL_ERROR; // 500
+		}
+
 		if (sipRequest.getToHeader().getTag() == null) {
 			sipRequest.getToHeader().setTag(SipUtils.getNewTag());
 		}

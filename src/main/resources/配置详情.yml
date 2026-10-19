@@ -5,10 +5,14 @@
 
 
 spring:
+  spring:
+    threads:
+      virtual:
+        enabled: true
     cache:
-        type: redis
+      type: redis
     thymeleaf:
-        cache: false
+      cache: false
     # 设置接口超时时间
     mvc:
         async:
@@ -19,23 +23,24 @@ spring:
             max-file-size: 10MB
             max-request-size: 100MB
     # REDIS数据库配置
-    redis:
-        # [必须修改] Redis服务器IP, REDIS安装在本机的,使用127.0.0.1
-        host: 127.0.0.1
-        # [必须修改] 端口号
-        port: 6379
-        # [可选] 数据库 DB
-        database: 6
-        # [可选] 访问密码,若你的redis服务器没有设置密码，就不需要用密码去连接
-        password:
-        # [可选] 超时时间
-        timeout: 10000
-        # [可选] 一个pool最多可分配多少个jedis实例
-        poolMaxTotal: 1000
-        # [可选] 一个pool最多有多少个状态为idle(空闲)的jedis实例
-        poolMaxIdle: 500
-        # [可选] 最大的等待时间(秒)
-        poolMaxWait: 5
+    data:
+        redis:
+            # [必须修改] Redis服务器IP, REDIS安装在本机的,使用127.0.0.1
+            host: 127.0.0.1
+            # [必须修改] 端口号
+            port: 6379
+            # [可选] 数据库 DB
+            database: 6
+            # [可选] 访问密码,若你的redis服务器没有设置密码，就不需要用密码去连接
+            password:
+            # [可选] 超时时间
+            timeout: 10000
+            # [可选] 一个pool最多可分配多少个jedis实例
+            poolMaxTotal: 1000
+            # [可选] 一个pool最多有多少个状态为idle(空闲)的jedis实例
+            poolMaxIdle: 500
+            # [可选] 最大的等待时间(秒)
+            poolMaxWait: 5
     # [必选] jdbc数据库配置
     datasource:
         # kingbase配置
@@ -43,13 +48,20 @@ spring:
         #        driver-class-name: com.kingbase8.Driver
         #        url: jdbc:kingbase8://192.168.1.55:54321/wvp?useUnicode=true&characterEncoding=utf8
         #        username: system
-        #        password: system
+        #        password:
         # postgresql配置
         #    type: com.zaxxer.hikari.HikariDataSource
         #    driver-class-name: org.postgresql.Driver
         #    url: jdbc:postgresql://192.168.1.242:3306/242wvp
         #    username: root
-        #    password: SYceshizu1234
+        #    password:
+        # 达梦数据库(DM8)配置
+        #    type: com.zaxxer.hikari.HikariDataSource
+        #    driver-class-name: dm.jdbc.driver.DmDriver
+        #    url: jdbc:dm://192.168.1.238:5236?keyWords=(model,owner,block,status,secret,type,enable,self,alias,snap,start,stop)
+        #    username: SYSDBA
+        #    # [必须修改] 达梦数据库密码，由用户手动填写
+        #    password:
         # mysql配置
         type: com.zaxxer.hikari.HikariDataSource
         driver-class-name: com.mysql.cj.jdbc.Driver
@@ -88,15 +100,19 @@ server:
         certificate: xx.pem
         #   私钥文件
         certificate-private-key: xx.key
+        # protocols: TLSv1.2
+        # ciphers: TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+
 
 # 作为28181服务器的配置
 sip:
-    # [必须修改] 本机的IP，对应你的网卡，监听什么ip就是使用什么网卡，
+    # [可选] 监听网卡ＩＰ，监听什么ip就是使用什么网卡，不配置则自动获取本机所有网卡，推荐不配置，系统自动获取
     # 如果要监听多张网卡，可以使用逗号分隔多个IP， 例如： 192.168.1.4,10.0.0.4
     # 如果不明白，就使用0.0.0.0，大部分情况都是可以的
     # 请不要使用127.0.0.1，任何包括localhost在内的域名都是不可以的。
     ip: 0.0.0.0
     # [可选] 没有任何业务需求，仅仅是在前端展示的时候用
+    # [docker环境下必选] 在docker环境中运行时，此配置为sip对外的ip地址， 必须配置，否则无法正常使用
     show-ip: 192.168.0.100
     # [可选] 28181服务监听的端口
     port: 5060
@@ -107,7 +123,7 @@ sip:
     domain: 4401020049
     # [可选]
     id: 44010200492000000001
-    # [可选] 默认设备认证密码，后续扩展使用设备单独密码, 移除密码将不进行校验
+    # [可选] 公共认证密码 移除密码将必须提前添加设备才能通过认证
     password: admin123
     # [可选] 国标级联注册失败，再次发起注册的时间间隔。 默认60秒
     register-time-interval: 60
@@ -136,6 +152,10 @@ jt1078:
     #[可选] 设备鉴权的密码
     password: admin123
 
+sy:
+  enable: false
+  # 云台控制开始到结束的时间间隔(毫秒)
+  ptz-control-time-interval: 300
 
 #zlm 默认服务器配置
 media:
@@ -153,18 +173,6 @@ media:
     hook-ip: 172.19.128.50
     # [必须修改] zlm服务器的http.port
     http-port: 80
-    # [可选] zlm服务器的http.sslport, 置空使用zlm配置文件配置
-    http-ssl-port:
-    # [可选] zlm服务器的rtmp.port, 置空使用zlm配置文件配置
-    rtmp-port:
-    # [可选] zlm服务器的rtmp.sslport, 置空使用zlm配置文件配置
-    rtmp-ssl-port:
-    # [可选] zlm服务器的 rtp_proxy.port, 置空使用zlm配置文件配置
-    rtp-proxy-port:
-    # [可选] zlm服务器的 rtsp.port, 置空使用zlm配置文件配置
-    rtsp-port:
-    # [可选] zlm服务器的 rtsp.sslport, 置空使用zlm配置文件配置
-    rtsp-ssl-port:
     # [可选] 是否自动配置ZLM, 如果希望手动配置ZLM, 可以设为false, 不建议新接触的用户修改
     auto-config: true
     # [可选] zlm服务器的hook.admin_params=secret
@@ -184,9 +192,6 @@ media:
     # 录像辅助服务， 部署此服务可以实现zlm录像的管理与下载， 0 表示不使用
     record-assist-port: 0
 
-# [可选] 日志配置, 如果不需要在jar外修改日志内容那么可以不配置此项
-logging:
-    config: classpath:logback-spring.xml
 
 # [根据业务需求配置]
 user-settings:
@@ -269,6 +274,24 @@ user-settings:
     # 这允许服务器防止客户端发起的基于 TCP 的拒绝服务攻击（即发起数百个客户端事务）。
     # 如果为 true（默认作），则堆栈将保持套接字打开，以便以牺牲线程和内存资源为代价来最大化性能 - 使自身容易受到 DOS 攻击。
     sip-cache-server-connections: true
+    # 处理报警消息时，会缓存通道数据，如果超出则丢弃低热度消息，被丢弃的通道下次使用就需要重新查询数据库，默认10000，
+    # 建议根据实际情况调整，过大可能会占用较多内存，过小可能会增加数据库查询压力,
+    alarm-catch-size: 10000
+    # 是否使用拉流的方式获取快照，默认false，避免流量大规模消耗，开启后则使用拉流的方式获取快照
+    alarm-snap-by-stream: true
+    # 截图是否使用 ZLM 内部解码通道(async=1)，默认 false 使用 ffmpeg 命令行截图，部分环境内部解码截图会失败(ZLM 报错 decode frame timeout)
+    snap-async: false
+    # 是否使用拉流的方式获取快照，默认false，避免流量大规模消耗，开启后则使用拉流的方式获取快照
+    allowed-alarm-type:
+      - IntrusionDetection
+    # 设备注册时间列表最大保留条数，默认100，设置为0则不限制
+    device-register-time-max-count: 100
+    # 设备注册时间列表过期时间（小时），默认3，设置为0则永不过期
+    device-register-time-ttl-hours: 3
+    # 设备心跳时间列表最大保留条数，默认100，设置为0则不限制
+    device-keepalive-time-max-count: 100
+    # 设备心跳时间列表过期时间（小时），默认1，设置为0则永不过期
+    device-keepalive-time-ttl-hours: 1
 
 # 关闭在线文档（生产环境建议关闭）
 springdoc:
@@ -276,3 +299,12 @@ springdoc:
         enabled: false
     swagger-ui:
         enabled: false
+
+logging:
+  level:
+    # 日志级别 debug/info/warn/error
+    root: info
+  logback:
+    rollingpolicy:
+      # 日志文件最大历史保留天数，默认30天
+      max-history: 30

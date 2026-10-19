@@ -1,6 +1,7 @@
 package com.genersoft.iot.vmp.media.abl;
 
 import com.alibaba.fastjson2.JSONObject;
+import com.genersoft.iot.vmp.common.enums.MediaStreamUtil;
 import com.genersoft.iot.vmp.conf.UserSetting;
 import com.genersoft.iot.vmp.conf.exception.ControllerException;
 import com.genersoft.iot.vmp.gb28181.service.IDeviceService;
@@ -18,19 +19,18 @@ import com.genersoft.iot.vmp.media.event.media.*;
 import com.genersoft.iot.vmp.media.service.IMediaServerService;
 import com.genersoft.iot.vmp.media.zlm.dto.hook.HookResult;
 import com.genersoft.iot.vmp.media.zlm.dto.hook.HookResultForOnPublish;
-import com.genersoft.iot.vmp.service.*;
+import com.genersoft.iot.vmp.service.IMediaService;
 import com.genersoft.iot.vmp.storager.IRedisCatchStorage;
+import io.swagger.v3.oas.annotations.Hidden;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.util.ObjectUtils;
 import org.springframework.web.bind.annotation.*;
 
-import javax.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -39,6 +39,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/index/hook/abl")
+@Hidden
 public class ABLHttpHookListener {
 
     private final static Logger logger = LoggerFactory.getLogger(ABLHttpHookListener.class);
@@ -78,12 +79,8 @@ public class ABLHttpHookListener {
     @Autowired
     private SSRCFactory ssrcFactory;
 
-    @Qualifier("taskExecutor")
     @Autowired
-    private ThreadPoolTaskExecutor taskExecutor;
-
-    @Autowired
-    private RedisTemplate<Object, Object> redisTemplate;
+    private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
     private ApplicationEventPublisher applicationEventPublisher;
@@ -192,14 +189,14 @@ public class ABLHttpHookListener {
 
         logger.info("[ABL HOOK] 码流不到达通知：{}->{}/{}", param.getMediaServerId(), param.getApp(), param.getStream());
         try {
-            if ("rtp".equals(param.getApp())) {
+            if (MediaStreamUtil.RTP_APP.equals(param.getApp())) {
                 return HookResult.SUCCESS();
             }
             MediaRtpServerTimeoutEvent event = new MediaRtpServerTimeoutEvent(this);
             MediaServer mediaServerItem = mediaServerService.getOne(param.getMediaServerId());
             if (mediaServerItem != null) {
                 event.setMediaServer(mediaServerItem);
-                event.setApp("rtp");
+                event.setApp(MediaStreamUtil.RTP_APP);
                 applicationEventPublisher.publishEvent(event);
             }
         }catch (Exception e) {

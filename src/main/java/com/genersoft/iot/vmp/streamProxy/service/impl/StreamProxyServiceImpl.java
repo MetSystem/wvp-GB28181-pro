@@ -3,6 +3,7 @@ package com.genersoft.iot.vmp.streamProxy.service.impl;
 import com.alibaba.fastjson2.JSONObject;
 import com.genersoft.iot.vmp.common.StreamInfo;
 import com.genersoft.iot.vmp.common.enums.ChannelDataType;
+import com.genersoft.iot.vmp.common.enums.MediaStreamUtil;
 import com.genersoft.iot.vmp.conf.UserSetting;
 import com.genersoft.iot.vmp.conf.exception.ControllerException;
 import com.genersoft.iot.vmp.gb28181.bean.CommonGBChannel;
@@ -18,7 +19,6 @@ import com.genersoft.iot.vmp.media.zlm.dto.hook.OriginType;
 import com.genersoft.iot.vmp.service.bean.ErrorCallback;
 import com.genersoft.iot.vmp.storager.IRedisCatchStorage;
 import com.genersoft.iot.vmp.streamProxy.bean.StreamProxy;
-import com.genersoft.iot.vmp.streamProxy.bean.StreamProxyParam;
 import com.genersoft.iot.vmp.streamProxy.dao.StreamProxyMapper;
 import com.genersoft.iot.vmp.streamProxy.service.IStreamProxyPlayService;
 import com.genersoft.iot.vmp.streamProxy.service.IStreamProxyService;
@@ -77,7 +77,7 @@ public class StreamProxyServiceImpl implements IStreamProxyService {
     /**
      * 流到来的处理
      */
-    @Async("taskExecutor")
+    @Async
     @Transactional
     @org.springframework.context.event.EventListener
     public void onApplicationEvent(MediaArrivalEvent event) {
@@ -89,7 +89,7 @@ public class StreamProxyServiceImpl implements IStreamProxyService {
     /**
      * 流离开的处理
      */
-    @Async("taskExecutor")
+    @Async
     @EventListener
     @Transactional
     public void onApplicationEvent(MediaDepartureEvent event) {
@@ -101,10 +101,10 @@ public class StreamProxyServiceImpl implements IStreamProxyService {
     /**
      * 流未找到的处理
      */
-    @Async("taskExecutor")
+    @Async
     @EventListener
     public void onApplicationEvent(MediaNotFoundEvent event) {
-        if ("rtp".equals(event.getApp())) {
+        if (MediaStreamUtil.isKeywords(event.getApp())) {
             return;
         }
         // 拉流代理
@@ -119,7 +119,7 @@ public class StreamProxyServiceImpl implements IStreamProxyService {
     /**
      * 流媒体节点上线
      */
-    @Async("taskExecutor")
+    @Async
     @EventListener
     @Transactional
     public void onApplicationEvent(MediaServerOnlineEvent event) {
@@ -129,42 +129,13 @@ public class StreamProxyServiceImpl implements IStreamProxyService {
     /**
      * 流媒体节点离线
      */
-    @Async("taskExecutor")
+    @Async
     @EventListener
     @Transactional
     public void onApplicationEvent(MediaServerOfflineEvent event) {
         zlmServerOffline(event.getMediaServer());
     }
 
-
-    @Override
-    @Transactional
-    public void save(StreamProxyParam param, ErrorCallback<StreamInfo> callback) {
-        // 兼容旧接口
-        StreamProxy streamProxyInDb = getStreamProxyByAppAndStream(param.getApp(), param.getStream());
-        if (streamProxyInDb != null && streamProxyInDb.getPulling() != null && streamProxyInDb.getPulling()) {
-            playService.stopProxy(streamProxyInDb);
-        }
-        if (param.getMediaServerId().equals("auto")) {
-            param.setMediaServerId(null);
-        }
-        StreamProxy streamProxy = param.buildStreamProxy(userSetting.getServerId());
-
-        if (streamProxyInDb == null) {
-            add(streamProxy);
-        } else {
-            try {
-                playService.stopProxy(streamProxyInDb);
-            } catch (ControllerException ignored) {
-            }
-            streamProxyMapper.delete(streamProxyInDb.getId());
-            add(streamProxy);
-        }
-
-        if (param.isEnable()) {
-            playService.startProxy(streamProxy, callback);
-        }
-    }
 
     @Override
     @Transactional
@@ -319,7 +290,7 @@ public class StreamProxyServiceImpl implements IStreamProxyService {
         }
 
         if (!channelListForOnline.isEmpty()) {
-            gbChannelService.online(channelListForOnline);
+            gbChannelService.online(channelListForOnline, true);
         }
         List<CommonGBChannel> channelListForOffline = new ArrayList<>();
         List<StreamProxy> streamProxiesForRemove = new ArrayList<>();
@@ -329,15 +300,10 @@ public class StreamProxyServiceImpl implements IStreamProxyService {
                     streamProxy.setGbStatus("OFF");
                     channelListForOffline.add(streamProxy.buildCommonGBChannel());
                 }
-                // 移除开启了无人观看自动移除的流
-                if (streamProxy.getGbDeviceId() == null && streamProxy.isEnableRemoveNoneReader()) {
-                    streamProxiesForRemove.add(streamProxy);
-                    streamProxyMapForDb.remove(streamProxy.getApp() + streamProxy.getStream());
-                }
             }
         }
         if (!channelListForOffline.isEmpty()) {
-            gbChannelService.offline(channelListForOffline);
+            gbChannelService.offline(channelListForOffline, true);
         }
         if (!streamProxiesForRemove.isEmpty()) {
             streamProxyMapper.deleteByList(streamProxiesForRemove);
@@ -360,7 +326,6 @@ public class StreamProxyServiceImpl implements IStreamProxyService {
         if (streamProxies.isEmpty()) {
             return;
         }
-        List<StreamProxy> streamProxiesForRemove = new ArrayList<>();
         List<StreamProxy> streamProxiesForSendMessage = new ArrayList<>();
         List<CommonGBChannel> channelListForOffline = new ArrayList<>();
 
@@ -368,20 +333,13 @@ public class StreamProxyServiceImpl implements IStreamProxyService {
             if (streamProxy.getGbId() > 0 && "ON".equalsIgnoreCase(streamProxy.getGbStatus())) {
                 channelListForOffline.add(streamProxy.buildCommonGBChannel());
             }
-            if (streamProxy.getGbId() == 0 && streamProxy.isEnableRemoveNoneReader()) {
-                streamProxiesForRemove.add(streamProxy);
-            }
             if ("ON".equalsIgnoreCase(streamProxy.getGbStatus())) {
                 streamProxiesForSendMessage.add(streamProxy);
             }
         }
-        if (!streamProxiesForRemove.isEmpty()) {
-            // 移除开启了无人观看自动移除的流
-            streamProxyMapper.deleteByList(streamProxiesForRemove);
-        }
-        if (!streamProxiesForRemove.isEmpty()) {
+        if (!channelListForOffline.isEmpty()) {
             // 修改国标关联的国标通道的状态
-            gbChannelService.offline(channelListForOffline);
+            gbChannelService.offline(channelListForOffline, true);
         }
         if (!streamProxiesForSendMessage.isEmpty()) {
             for (StreamProxy streamProxy : streamProxiesForSendMessage) {
@@ -407,15 +365,6 @@ public class StreamProxyServiceImpl implements IStreamProxyService {
         streamProxy.setMediaServerId(mediaServerId);
         streamProxy.setUpdateTime(DateUtil.getNow());
         streamProxyMapper.updateStream(streamProxy);
-
-        streamProxy.setGbStatus(status ? "ON" : "OFF");
-        if (streamProxy.getGbId() > 0) {
-            if (status) {
-                gbChannelService.online(streamProxy.buildCommonGBChannel());
-            } else {
-                gbChannelService.offline(streamProxy.buildCommonGBChannel());
-            }
-        }
     }
 
     @Override

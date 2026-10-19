@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.genersoft.iot.vmp.common.InviteInfo;
 import com.genersoft.iot.vmp.common.InviteSessionType;
 import com.genersoft.iot.vmp.common.StreamInfo;
+import com.genersoft.iot.vmp.common.enums.MediaStreamUtil;
 import com.genersoft.iot.vmp.conf.UserSetting;
 import com.genersoft.iot.vmp.conf.exception.SsrcTransactionNotFoundException;
 import com.genersoft.iot.vmp.gb28181.bean.Device;
@@ -15,6 +16,7 @@ import com.genersoft.iot.vmp.gb28181.service.IPlayService;
 import com.genersoft.iot.vmp.gb28181.transmit.cmd.impl.SIPCommander;
 import com.genersoft.iot.vmp.media.bean.MediaServer;
 import com.genersoft.iot.vmp.service.bean.InviteErrorCode;
+import io.swagger.v3.oas.annotations.Hidden;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -32,6 +34,7 @@ import java.text.ParseException;
 @Slf4j
 @RestController
 @RequestMapping(value = "/api/v1/stream")
+@Hidden
 public class ApiStreamController {
 
     @Autowired
@@ -244,14 +247,13 @@ public class ApiStreamController {
         }
 
         try {
-            cmder.streamByeCmd(device, code, "rtp", inviteInfo.getStream(), null, null);
+            cmder.streamByeCmd(device, code, MediaStreamUtil.RTP_APP, inviteInfo.getStream(), null, null);
         } catch (InvalidArgumentException | ParseException | SipException | SsrcTransactionNotFoundException e) {
-            JSONObject result = new JSONObject();
-            result.put("error","发送BYE失败：" + e.getMessage());
-            return result;
+            log.error("[停止点播] 发送BYE失败: {}", e.getMessage());
+        } finally {
+            inviteStreamService.removeInviteInfo(inviteInfo);
+            deviceChannelService.stopPlay(inviteInfo.getChannelId());
         }
-        inviteStreamService.removeInviteInfo(inviteInfo);
-        deviceChannelService.stopPlay(inviteInfo.getChannelId());
         return null;
     }
 

@@ -1,9 +1,9 @@
 package com.genersoft.iot.vmp.utils;
 
 
+import jakarta.validation.constraints.NotNull;
 import org.apache.commons.lang3.ObjectUtils;
 
-import javax.validation.constraints.NotNull;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -12,7 +12,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAccessor;
-
 import java.util.Locale;
 
 /**
@@ -71,7 +70,7 @@ public class DateUtil {
     public static final DateTimeFormatter formatter1078 = DateTimeFormatter.ofPattern(PATTERN1078, Locale.getDefault()).withZone(ZoneId.of(zoneStr));
     public static final DateTimeFormatter formatter1078date = DateTimeFormatter.ofPattern(PATTERN1078Date, Locale.getDefault()).withZone(ZoneId.of(zoneStr));
 
-	public static String yyyy_MM_dd_HH_mm_ssToISO8601(@NotNull String formatTime) {
+    public static String yyyy_MM_dd_HH_mm_ssToISO8601(@NotNull String formatTime) {
         return formatterISO8601.format(formatter.parse(formatTime));
     }
 

@@ -73,7 +73,7 @@
         ref="channelListTable"
         size="medium"
         :data="channelList"
-        height="calc(100vh - 190px)"
+        :height="tableHeight"
         style="width: 100%"
         header-row-class-name="table-header"
         @selection-change="handleSelectionChange"
@@ -88,6 +88,12 @@
             <div slot="reference" class="name-wrapper">
               <el-tag size="medium" effect="plain" type="success" :style="$channelTypeList[scope.row.dataType].style">{{ $channelTypeList[scope.row.dataType].name }}</el-tag>
             </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="位置信息" min-width="150">
+          <template v-slot:default="scope">
+            <span v-if="scope.row.gbLongitude && scope.row.gbLatitude">{{ scope.row.gbLongitude }}<br>{{ scope.row.gbLatitude }}</span>
+            <span v-if="!scope.row.gbLongitude || !scope.row.gbLatitude">无</span>
           </template>
         </el-table-column>
         <el-table-column label="状态" min-width="100">
@@ -118,7 +124,7 @@
 <script>
 import RegionTree from '../..//common/RegionTree.vue'
 import GbChannelSelect from '../../dialog/GbChannelSelect.vue'
-import UnusualRegionChannelSelect from '../../dialog/UnusualRegionChannelSelect.vue'
+import UnusualRegionChannelSelect from './UnusualRegionChannelSelect.vue'
 
 export default {
   name: 'Region',
@@ -130,6 +136,7 @@ export default {
   data() {
     return {
       channelList: [],
+      tableHeight: 'calc(100vh - 190px)',
       searchStr: '',
       channelType: '',
       online: '',
@@ -147,6 +154,7 @@ export default {
 
   created() {
     this.initData()
+    this.tableHeight = `calc(100vh - ${this.$refs.queryForm.offsetHeight}px)`
   },
   destroyed() {
   },

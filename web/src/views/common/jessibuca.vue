@@ -1,44 +1,46 @@
 <template>
-  <div
-    ref="container"
-    style="width:100%; height: 100%; background-color: #000000;margin:0 auto;position: relative;"
-    @dblclick="fullscreenSwich"
-  >
-    <div style="width:100%; padding-top: 56.25%; position: relative;" />
-    <div id="buttonsBox" class="buttons-box">
-      <div class="buttons-box-left">
-        <i v-if="!playing" class="iconfont icon-play jessibuca-btn" @click="playBtnClick" />
-        <i v-if="playing" class="iconfont icon-pause jessibuca-btn" @click="pause" />
-        <i class="iconfont icon-stop jessibuca-btn" @click="destroy" />
-        <i v-if="isNotMute" class="iconfont icon-audio-high jessibuca-btn" @click="mute()" />
-        <i v-if="!isNotMute" class="iconfont icon-audio-mute jessibuca-btn" @click="cancelMute()" />
-      </div>
-      <div class="buttons-box-right">
-        <span class="jessibuca-btn">{{ kBps }} kb/s</span>
-        <!--          <i class="iconfont icon-file-record1 jessibuca-btn"></i>-->
-        <!--          <i class="iconfont icon-xiangqing2 jessibuca-btn" ></i>-->
-        <i
-          class="iconfont icon-camera1196054easyiconnet jessibuca-btn"
-          style="font-size: 1rem !important"
-          @click="screenshot"
-        />
-        <i class="iconfont icon-shuaxin11 jessibuca-btn" @click="playBtnClick" />
-        <i v-if="!fullscreen" class="iconfont icon-weibiaoti10 jessibuca-btn" @click="fullscreenSwich" />
-        <i v-if="fullscreen" class="iconfont icon-weibiaoti11 jessibuca-btn" @click="fullscreenSwich" />
+    <div
+      ref="container"
+      style="width:100%; height: 100%; background-color: #000000;margin:0 auto;position: relative;"
+      @dblclick="fullscreenSwich"
+      @mouseenter="showBar = true" @mouseleave="showBar = false"
+    >
+      <div id="buttonsBox" class="buttons-box" v-if="showButton === undefined || showButton" :style="{ opacity: showBar ? 1 : 0, pointerEvents: showBar ? 'auto' : 'none' }">
+        <div class="buttons-box-left">
+          <i v-if="!playing" class="iconfont icon-play jessibuca-btn" @click="playBtnClick" />
+          <i v-if="playing" class="iconfont icon-pause jessibuca-btn" @click="pause" />
+          <i class="iconfont icon-stop jessibuca-btn" @click="stop" />
+          <i v-if="isNotMute" class="iconfont icon-audio-high jessibuca-btn" @click="mute()" />
+          <i v-if="!isNotMute" class="iconfont icon-audio-mute jessibuca-btn" @click="cancelMute()" />
+        </div>
+        <div class="buttons-box-right">
+          <span class="jessibuca-btn">{{ kBps }} kb/s</span>
+          <!--          <i class="iconfont icon-file-record1 jessibuca-btn"></i>-->
+          <!--          <i class="iconfont icon-xiangqing2 jessibuca-btn" ></i>-->
+          <i
+            class="iconfont icon-camera1196054easyiconnet jessibuca-btn"
+            style="font-size: 1rem !important"
+            @click="screenshot"
+          />
+          <i class="iconfont icon-shuaxin11 jessibuca-btn" @click="playBtnClick" />
+          <i v-if="!fullscreen" class="iconfont icon-weibiaoti10 jessibuca-btn" @click="fullscreenSwich" />
+          <i v-if="fullscreen" class="iconfont icon-weibiaoti11 jessibuca-btn" @click="fullscreenSwich" />
+        </div>
       </div>
     </div>
-  </div>
 </template>
 
 <script>
 const jessibucaPlayer = {}
+import dragZoom from '../../mixins/dragZoom'
 export default {
   name: 'Jessibuca',
-  props: ['videoUrl', 'error', 'hasAudio', 'height'],
+  mixins: [dragZoom],
+  props: ['videoUrl', 'error', 'hasAudio', 'height', 'showButton'],
   data() {
     return {
       playing: false,
-      isNotMute: false,
+      isNotMute: true,
       quieting: false,
       fullscreen: false,
       loaded: false, // mute
@@ -48,99 +50,65 @@ export default {
       btnDom: null,
       videoInfo: null,
       volume: 1,
+      playerTime: 0,
       rotate: 0,
       vod: true, // 点播
-      forceNoOffscreen: false
-    }
-  },
-  watch: {
-    videoUrl: {
-      handler(val, _) {
-        this.$nextTick(() => {
-          this.play(val)
-        })
-      },
-      immediate: true
+      forceNoOffscreen: false,
+      localVideoUrl: this.videoUrl,
+      showBar: true
     }
   },
   created() {
-    const paramUrl = decodeURIComponent(this.$route.params.url)
-    this.$nextTick(() => {
-      this.updatePlayerDomSize()
-      window.onresize = this.updatePlayerDomSize
-      if (typeof (this.videoUrl) === 'undefined') {
-        this.videoUrl = paramUrl
-      }
-      this.btnDom = document.getElementById('buttonsBox')
-    })
+    this.btnDom = document.getElementById('buttonsBox')
   },
-  // mounted() {
-  //   const ro = new ResizeObserver(entries => {
-  //     entries.forEach(entry => {
-  //       this.updatePlayerDomSize()
-  //     });
-  //   });
-  //   ro.observe(this.$refs.container);
-  // },
-  mounted() {
-    this.updatePlayerDomSize()
-  },
+  mounted() {},
   destroyed() {
     if (jessibucaPlayer[this._uid]) {
+      jessibucaPlayer[this._uid].videoPTS = 0
       jessibucaPlayer[this._uid].destroy()
     }
     this.playing = false
     this.loaded = false
     this.performance = ''
+    this.playerTime = 0
   },
   methods: {
-    updatePlayerDomSize() {
-      const dom = this.$refs.container
-      if (!this.parentNodeResizeObserver) {
-        this.parentNodeResizeObserver = new ResizeObserver(entries => {
-          this.updatePlayerDomSize()
-        })
-        this.parentNodeResizeObserver.observe(dom.parentNode)
+    create() {
+      if (jessibucaPlayer[this._uid]) {
+        jessibucaPlayer[this._uid].destroy()
       }
-      const boxWidth = dom.parentNode.clientWidth
-      const boxHeight = dom.parentNode.clientHeight
-      let width = boxWidth
-      let height = (9 / 16) * width
-      if (boxHeight > 0 && boxWidth > boxHeight / 9 * 16) {
-        height = boxHeight
-        width = boxHeight / 9 * 16
+      if (this.$refs.container.dataset['jessibuca']) {
+        this.$refs.container.dataset['jessibuca'] = undefined
       }
 
-      const clientHeight = Math.min(document.body.clientHeight, document.documentElement.clientHeight)
-      if (height > clientHeight) {
-        height = clientHeight
-        width = (16 / 9) * height
+      if (this.$refs.container.getAttribute('data-jessibuca')) {
+        this.$refs.container.removeAttribute('data-jessibuca')
       }
-      this.playerWidth = width
-      this.playerHeight = height
-      if (this.playing) {
-        jessibucaPlayer[this._uid].resize(this.playerWidth, this.playerHeight)
-      }
-    },
-    create() {
       const options = {
         container: this.$refs.container,
-        autoWasm: true,
-        background: '',
+        videoBuffer: 0,
+        isResize: true,
+        useMSE: false,
+        useWCS: false,
+        text: '',
+        // background: '',
         controlAutoHide: false,
         debug: false,
-        decoder: 'static/js/jessibuca/decoder.js',
-        forceNoOffscreen: false,
+        hotKey: true,
+        decoder: '/static/js/jessibuca/decoder.js',
+        sNotMute: true,
+        timeout: 10,
+        recordType: 'mp4',
+        isFlv: false,
+        forceNoOffscreen: true,
         hasAudio: typeof (this.hasAudio) === 'undefined' ? true : this.hasAudio,
         heartTimeout: 5,
         heartTimeoutReplay: true,
         heartTimeoutReplayTimes: 3,
         hiddenAutoPause: false,
-        hotKey: true,
-        isFlv: false,
         isFullResize: false,
+
         isNotMute: this.isNotMute,
-        isResize: true,
         keepScreenOn: true,
         loadingText: '请稍等, 视频加载中......',
         loadingTimeout: 10,
@@ -152,85 +120,97 @@ export default {
           screenshot: false,
           play: false,
           audio: false,
-          record: false
+          recorder: false
         },
-        recordType: 'mp4',
-        rotate: 0,
+        // rotate: 0,
         showBandwidth: false,
         supportDblclickFullscreen: false,
-        timeout: 10,
-        useMSE: true,
-        useWCS: false,
-        useWebFullScreen: true,
-        videoBuffer: 0.1,
+
+        useWebFullSreen: true,
+
         wasmDecodeErrorReplay: true,
-        wcsUseVideoRender: true
+        wcsUseVideoRendcer: true
       }
       console.log('Jessibuca -> options: ', options)
-      jessibucaPlayer[this._uid] = new window.Jessibuca({ ...options })
+      jessibucaPlayer[this._uid] = new window.Jessibuca(options)
 
       const jessibuca = jessibucaPlayer[this._uid]
-      const _this = this
-      jessibuca.on('pause', function() {
-        _this.playing = false
+      jessibuca.on('pause', () => {
+        this.playing = false
+        this.$emit('playStatusChange', false)
       })
-      jessibuca.on('play', function() {
-        _this.playing = true
+      jessibuca.on('play', () => {
+        this.playing = true
+        this.$emit('playStatusChange', true)
       })
-      jessibuca.on('fullscreen', function(msg) {
-        _this.fullscreen = msg
+      jessibuca.on('fullscreen', (msg) => {
+        this.fullscreen = msg
       })
-      jessibuca.on('mute', function(msg) {
-        _this.isNotMute = !msg
+      jessibuca.on('mute', (msg) => {
+        this.isNotMute = !msg
       })
-      jessibuca.on('performance', function(performance) {
+      jessibuca.on('performance', (performance) => {
         let show = '卡顿'
         if (performance === 2) {
           show = '非常流畅'
         } else if (performance === 1) {
           show = '流畅'
         }
-        _this.performance = show
+        this.performance = show
       })
-      jessibuca.on('kBps', function(kBps) {
-        _this.kBps = Math.round(kBps)
+      jessibuca.on('kBps', (kBps) => {
+        this.kBps = Math.round(kBps)
       })
-      jessibuca.on('videoInfo', function(msg) {
+      jessibuca.on('videoInfo', (msg) => {
         console.log('Jessibuca -> videoInfo: ', msg)
       })
-      jessibuca.on('audioInfo', function(msg) {
+      jessibuca.on('audioInfo', (msg) => {
         console.log('Jessibuca -> audioInfo: ', msg)
       })
-      jessibuca.on('error', function(msg) {
+      jessibuca.on('error', (msg) => {
         console.log('Jessibuca -> error: ', msg)
       })
-      jessibuca.on('timeout', function(msg) {
+      jessibuca.on('timeout', (msg) => {
         console.log('Jessibuca -> timeout: ', msg)
       })
-      jessibuca.on('loadingTimeout', function(msg) {
+      jessibuca.on('loadingTimeout', (msg) => {
         console.log('Jessibuca -> timeout: ', msg)
       })
-      jessibuca.on('delayTimeout', function(msg) {
+      jessibuca.on('delayTimeout', (msg) => {
         console.log('Jessibuca -> timeout: ', msg)
       })
-      jessibuca.on('playToRenderTimes', function(msg) {
+      jessibuca.on('playToRenderTimes', (msg) => {
         console.log('Jessibuca -> playToRenderTimes: ', msg)
       })
-    },
-    playBtnClick: function(event) {
-      this.play(this.videoUrl)
-    },
-    play: function(url) {
-      console.log('Jessibuca -> url: ', url)
-      if (jessibucaPlayer[this._uid]) {
-        this.destroy()
-      }
-      this.create()
-      jessibucaPlayer[this._uid].on('play', () => {
+      jessibuca.on('timeUpdate', (videoPTS) => {
+        if (jessibuca.videoPTS) {
+          this.playerTime += (videoPTS - jessibuca.videoPTS)
+          this.$emit('playTimeChange', this.playerTime)
+        }
+        jessibuca.videoPTS = videoPTS
+      })
+      jessibuca.on('play', () => {
         this.playing = true
         this.loaded = true
         this.quieting = jessibuca.quieting
       })
+    },
+    playBtnClick: function() {
+      this.play(this.videoUrl)
+    },
+    play: function(url) {
+      if (!url) {
+        console.warn('Jessibuca -> invalid url, skip play')
+        return
+      }
+      if (this.playing) {
+        this.stop()
+      }
+      this.localVideoUrl = url
+      console.log('Jessibuca -> url: ', url)
+      if (!jessibucaPlayer[this._uid]) {
+        this.create()
+      }
       if (jessibucaPlayer[this._uid].hasLoaded()) {
         jessibucaPlayer[this._uid].play(url)
       } else {
@@ -238,10 +218,20 @@ export default {
           jessibucaPlayer[this._uid].play(url)
         })
       }
+
     },
     pause: function() {
       if (jessibucaPlayer[this._uid]) {
         jessibucaPlayer[this._uid].pause()
+      }
+      this.playing = false
+      this.err = ''
+      this.performance = ''
+    },
+    stop: function() {
+      if (jessibucaPlayer[this._uid]) {
+        jessibucaPlayer[this._uid].pause()
+        jessibucaPlayer[this._uid].clearView()
       }
       this.playing = false
       this.err = ''
@@ -266,9 +256,9 @@ export default {
       if (jessibucaPlayer[this._uid]) {
         jessibucaPlayer[this._uid].destroy()
       }
-      if (document.getElementById('buttonsBox') == null) {
-        this.$refs.container.appendChild(this.btnDom)
-      }
+      // if (document.getElementById('buttonsBox') === null && (typeof this.showButton === 'undefined' || this.showButton)) {
+      //   this.$refs.container.appendChild(this.btnDom)
+      // }
       jessibucaPlayer[this._uid] = null
       this.playing = false
       this.err = ''
@@ -284,6 +274,22 @@ export default {
         document.msFullscreenElement ||
         document.mozFullScreenElement ||
         document.webkitFullscreenElement || false
+    },
+    setPlaybackRate: function() {
+
+    },
+    resize(width, height) {
+      if (jessibucaPlayer[this._uid]) {
+        jessibucaPlayer[this._uid].resize()
+      }
+    },
+    getVideoElement() {
+      return this.$refs.container.querySelector('canvas')
+    },
+    getVideoRect() {
+      const container = this.$refs.container
+      const canvas = this.getVideoElement()
+      return canvas ? canvas.getBoundingClientRect() : container.getBoundingClientRect()
     }
   }
 }
@@ -295,8 +301,7 @@ export default {
   height: 28px;
   background-color: rgba(43, 51, 63, 0.7);
   position: absolute;
-  display: -webkit-box;
-  display: -ms-flexbox;
+  transition: opacity 0.3s ease;
   display: flex;
   left: 0;
   bottom: 0;
@@ -308,7 +313,7 @@ export default {
   width: 20px;
   color: rgb(255, 255, 255);
   line-height: 27px;
-  margin: 0px 10px;
+  margin: 0px 20px;
   padding: 0px 2px;
   cursor: pointer;
   text-align: center;

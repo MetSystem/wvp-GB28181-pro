@@ -6,6 +6,7 @@ import com.genersoft.iot.vmp.gb28181.bean.Device;
 import com.genersoft.iot.vmp.gb28181.bean.SipTransactionInfo;
 import com.genersoft.iot.vmp.gb28181.utils.SipUtils;
 import com.genersoft.iot.vmp.storager.IRedisCatchStorage;
+import com.genersoft.iot.vmp.utils.EnvUtil;
 import com.genersoft.iot.vmp.utils.GitUtil;
 import com.genersoft.iot.vmp.utils.IpPortUtil;
 import gov.nist.javax.sip.message.SIPRequest;
@@ -269,12 +270,15 @@ public class SIPRequestHeaderProvider {
 		ExpiresHeader expireHeader = SipFactory.getInstance().createHeaderFactory().createExpiresHeader(expires);
 		request.addHeader(expireHeader);
 
-		// Event
-		EventHeader eventHeader = SipFactory.getInstance().createHeaderFactory().createEventHeader(event);
-
-		int random = (int) Math.floor(Math.random() * 10000);
-		eventHeader.setEventId(random + "");
-		request.addHeader(eventHeader);
+        // Event
+        EventHeader eventHeader = SipFactory.getInstance().createHeaderFactory().createEventHeader(event);
+        if (sipTransactionInfo != null && sipTransactionInfo.getEventId() != null) {
+            eventHeader.setEventId(sipTransactionInfo.getEventId());
+        }else {
+            int random = (int) Math.floor(Math.random() * 10000);
+            eventHeader.setEventId(random + "");
+        }
+        request.addHeader(eventHeader);
 
 		ContentTypeHeader contentTypeHeader = SipFactory.getInstance().createHeaderFactory().createContentTypeHeader("Application", "MANSCDP+xml");
 		request.setContent(content, contentTypeHeader);
@@ -331,6 +335,9 @@ public class SIPRequestHeaderProvider {
 	public Request createAckRequest(String localIp, SipURI sipURI, SIPResponse sipResponse) throws ParseException, InvalidArgumentException, PeerUnavailableException {
 
 
+		if(EnvUtil.isDockerEnv()){
+			localIp = sipLayer.getLocalIp(localIp);
+		}
 		// via
 		ArrayList<ViaHeader> viaHeaders = new ArrayList<ViaHeader>();
 		ViaHeader viaHeader = SipFactory.getInstance().createHeaderFactory().createViaHeader(localIp, sipConfig.getPort(), sipResponse.getTopmostViaHeader().getTransport(), SipUtils.getNewViaTag());

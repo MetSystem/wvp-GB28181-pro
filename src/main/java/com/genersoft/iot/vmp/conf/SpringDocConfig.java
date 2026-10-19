@@ -7,12 +7,12 @@ import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.security.SecurityScheme;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.core.annotation.Order;
-import org.springdoc.core.GroupedOpenApi;
+import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 
 /**
  * @author lin
@@ -39,7 +39,7 @@ public class SpringDocConfig {
                 .info(new Info().title("WVP-PRO 接口文档")
                         .contact(contact)
                         .description("开箱即用的28181协议视频平台。 <br/>" +
-                                "1. 打开<a href='/doc.html#/1.%20全部/用户管理/login_1'>登录</a>接口" +
+                                "1. 打开<a href='/doc.html#/1.%20全部/用户管理/login'>登录</a>接口" +
                                 " 登录成功后返回AccessToken。 <br/>" +
                                 "2. 填写到AccessToken到参数值 <a href='/doc.html#/Authorize/1.%20全部'>Token配置</a>  <br/>" +
                                 "后续接口就可以直接测试了")
@@ -104,6 +104,14 @@ public class SpringDocConfig {
         return GroupedOpenApi.builder()
                 .group("6. 部标设备")
                 .packagesToScan("com.genersoft.iot.vmp.jt1078.controller")
+                .build();
+    }
+
+    @Bean
+    public GroupedOpenApi publicApi99() {
+        return GroupedOpenApi.builder()
+                .group("99. 第三方接口")
+                .packagesToScan("com.genersoft.iot.vmp.web.custom")
                 .build();
     }
 }

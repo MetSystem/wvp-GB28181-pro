@@ -10,7 +10,7 @@
             placeholder="关键字"
             prefix-icon="el-icon-search"
             clearable
-            @input="getPlatformList"
+            @input="queryList"
           />
         </el-form-item>
         <el-form-item>
@@ -141,7 +141,7 @@
 </template>
 
 <script>
-import shareChannel from '../dialog/shareChannel.vue'
+import shareChannel from './dialog/shareChannel.vue'
 import platformEdit from './edit.vue'
 import Vue from 'vue'
 
@@ -290,6 +290,11 @@ export default {
     },
     handleSizeChange: function(val) {
       this.count = val
+      this.getPlatformList()
+    },
+    queryList: function() {
+      this.currentPage = 1
+      this.total = 0
       this.getPlatformList()
     },
     getPlatformList: function() {

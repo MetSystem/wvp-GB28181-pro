@@ -1,6 +1,6 @@
 <template>
-  <div id="regionTree" style="border-right: 1px solid #EBEEF5; height: 100%">
-    <div style="padding: 0 20px 0 10px;">
+  <div id="regionTree" style="border-right: 1px solid #EBEEF5; height: 100%; display: flex; flex-direction: column;">
+    <div style="padding: 0 20px 0 10px; flex-shrink: 0;">
       <el-input size="small" v-model="searchStr" @input="searchChange" suffix-icon="el-icon-search" placeholder="请输入搜索内容" clearable>
 <!--        <el-select v-model="searchType" slot="prepend" placeholder="搜索类型" style="width: 80px">-->
 <!--          <el-option label="目录" :value="0"></el-option>-->
@@ -8,7 +8,7 @@
 <!--        </el-select>-->
       </el-input>
     </div>
-    <div v-if="!searchStr">
+    <div v-if="!searchStr" style="flex: 1; min-height: 0;">
       <el-alert
         v-if="showAlert && edit"
         title="操作提示"
@@ -16,7 +16,7 @@
         type="info"
         style="text-align: left"
       />
-      <div v-if="edit" style="float: right;margin-right: 24px;margin-top: 18px; font-size: 14px" >
+      <div v-if="edit" style="margin-top: 18px;font-size: 14px;position: absolute;left: 309px;z-index: 100;" >
         显示编号： <el-checkbox v-model="showCode" />
       </div>
 
@@ -24,7 +24,7 @@
         ref="veTree"
         class="flow-tree"
         node-key="treeId"
-        :height="treeHeight?treeHeight:'78vh'"
+        :height="'100%'"
         lazy
         :load="loadNode"
         :data="treeData"
@@ -56,20 +56,16 @@
               class="iconfont icon-shexiangtou2"
             />
             <span
-              v-if="node.data.deviceId !=='' && showCode"
-              style=" padding-left: 1px"
-              :title="node.data.deviceId"
-            >{{ node.label }}（编号：{{ node.data.deviceId }}）</span>
-            <span
-              v-if="node.data.deviceId ==='' || !showCode"
               style=" padding-left: 1px"
               :title="node.data.deviceId"
             >{{ node.label }}</span>
+            <span v-if="node.data.deviceId !=='' && showCode">（编号：{{ node.data.deviceId }}）</span>
+            <span v-if="node.data.longitude && showPosition" class="iconfont icon-gps"></span>
           </span>
         </template>
       </vue-easy-tree>
     </div>
-    <div v-if="searchStr" style="color: #606266; height: calc(100% - 32px); overflow: auto !important;">
+    <div v-if="searchStr" style="color: #606266; flex: 1; min-height: 0; overflow: auto;">
       <ul v-if="regionList.length > 0" style="list-style: none; margin: 0; padding: 10px">
         <li v-for="item in regionList" :key="item.id" class="channel-list-li" style="height: 26px; align-items: center;cursor: pointer;" @click="listClickHandler(item)">
           <span
@@ -90,7 +86,7 @@
       </ul>
 
       <ul v-if="channelList.length > 0" style="list-style: none; margin: 0; padding: 10px; overflow: auto">
-        <li v-for="item in channelList" :key="item.id" class="channel-list-li" @click="channelLstClickHandler(item)">
+        <li v-for="item in channelList" :key="item.id" class="channel-list-li" @click="channelLstClickHandler(item)" @contextmenu.prevent="contextmenuEventHandlerForLi($event, item)">
           <span
             v-if="item.gbStatus === 'ON'"
             style="color: #409EFF; font-size: 20px"
@@ -123,7 +119,6 @@ import VueEasyTree from '@wchbrad/vue-easy-tree'
 import regionEdit from './../dialog/regionEdit'
 import gbDeviceSelect from './../dialog/GbDeviceSelect'
 import GbChannelSelect from '../dialog/GbChannelSelect.vue'
-import chooseCivilCode from '@/views/dialog/chooseCivilCode.vue'
 
 export default {
   name: 'DeviceTree',
@@ -131,7 +126,7 @@ export default {
     GbChannelSelect,
     VueEasyTree, regionEdit, gbDeviceSelect
   },
-  props: ['edit', 'enableAddChannel', 'showHeader', 'hasChannel', 'addChannelToCivilCode', 'treeHeight'],
+  props: ['edit', 'enableAddChannel', 'onChannelChange', 'showHeader', 'hasChannel', 'addChannelToCivilCode', 'treeHeight', 'showPosition', 'contextmenu'],
   data() {
     return {
       props: {
@@ -141,6 +136,7 @@ export default {
       searchType: 0,
       showCode: false,
       showAlert: true,
+      treeLimit: 50,
       searchStr: '',
       chooseId: '',
       treeData: [],
@@ -202,6 +198,7 @@ export default {
       })
     },
     loadNode: function(node, resolve) {
+      console.log(22222)
       if (node.level === 0) {
         resolve([{
           treeId: '',
@@ -224,7 +221,23 @@ export default {
             if (data.length > 0) {
               this.showAlert = false
             }
-            resolve(data)
+            if (data.length > this.treeLimit) {
+              let subData = data.splice(0, this.treeLimit)
+              subData.push({
+                treeId: '---',
+                deviceId: '---',
+                name: '加载更多...',
+                isLeaf: true,
+                leaf: true,
+                type: 100,
+                children: [],
+                nextData: data
+              })
+              resolve(subData)
+            } else {
+              resolve(data)
+            }
+
           }).finally(() => {
             this.locading = false
           })
@@ -236,10 +249,11 @@ export default {
       this.$forceUpdate()
     },
     contextmenuEventHandler: function(event, data, node, element) {
-      if (!this.edit) {
+      if (!this.edit && !this.contextmenu) {
         return
       }
-      if (node.data.type === 0) {
+      const allMenuItem = []
+      if (this.edit && node.data.type === 0) {
         const menuItem = [
           {
             label: '刷新节点',
@@ -316,15 +330,31 @@ export default {
             }
           )
         }
-
-        this.$contextmenu({
-          items: menuItem,
-          event, // 鼠标事件信息
-          customClass: 'custom-class', // 自定义菜单 class
-          zIndex: 3000 // 菜单样式 z-index
-        })
+        allMenuItem.push(...menuItem)
       }
-
+      if (this.contextmenu && node.data.type === 1) {
+        for (let i = 0; i < this.contextmenu.length; i++) {
+          let item = this.contextmenu[i]
+          if (item.type === node.data.type) {
+            allMenuItem.push({
+              label: item.label,
+              icon: item.icon,
+              onClick: () => {
+                item.onClick(event, data, node)
+              }
+            })
+          }
+        }
+      }
+      if (allMenuItem.length === 0) {
+        return
+      }
+      this.$contextmenu({
+        items: allMenuItem,
+        event, // 鼠标事件信息
+        customClass: 'custom-class', // 自定义菜单 class
+        zIndex: 3000 // 菜单样式 z-index
+      })
       return false
     },
     removeRegion: function(id, node) {
@@ -334,8 +364,13 @@ export default {
           this.$emit('onChannelChange', node.data.deviceId)
           node.parent.loaded = false
           node.parent.expand()
-        }).catch(function(error) {
-          console.log(error)
+        })
+        .catch((error) => {
+          this.$message({
+            showClose: true,
+            message: error,
+            type: 'error'
+          })
         })
     },
     addChannelFormDevice: function(id, node) {
@@ -396,12 +431,16 @@ export default {
       node.expand()
     },
     refresh: function(id) {
-      console.log(id)
       // 查询node
       const node = this.$refs.veTree.getNode(id)
       if (node) {
-        node.loaded = false
-        node.expand()
+        if (id.includes('channel') >= 0) {
+          node.parent.loaded = false
+          node.parent.expand()
+        }else {
+          node.loaded = false
+          node.expand()
+        }
       }
     },
     addRegion: function(id, node) {
@@ -425,8 +464,35 @@ export default {
       }, node.data)
     },
     nodeClickHandler: function(data, node, tree) {
-      this.chooseId = data.deviceId
-      this.$emit('clickEvent', data)
+      if (data && data.nextData && data.nextData.length > 0) {
+        const parentNode = node.parent
+        let nextData = data.nextData
+        if (nextData.length > this.treeLimit) {
+          let subData = nextData.splice(0, this.treeLimit)
+          subData.push({
+            treeId: '---',
+            deviceId: '---',
+            name: '加载更多...',
+            isLeaf: true,
+            leaf: true,
+            type: 100,
+            children: [],
+            nextData: nextData
+          })
+          this.$refs.veTree.remove(data, parentNode)
+          for (let item of subData) {
+            this.$refs.veTree.append(item, parentNode)
+          }
+        } else {
+          this.$refs.veTree.remove(data, parentNode)
+          for (let item of nextData) {
+            this.$refs.veTree.append(item, parentNode)
+          }
+        }
+      } else {
+        this.chooseId = data.deviceId
+        this.$emit('clickEvent', data)
+      }
     },
     listClickHandler: function(data) {
       this.chooseId = data.deviceId
@@ -437,32 +503,43 @@ export default {
         leaf: true,
         id: data.gbId
       })
+    },
+    contextmenuEventHandlerForLi(event, data) {
+      console.log(data)
+      const allMenuItem = []
+      if (this.contextmenu) {
+        for (let i = 0; i < this.contextmenu.length; i++) {
+          let item = this.contextmenu[i]
+          allMenuItem.push({
+            label: item.label,
+            icon: item.icon,
+            onClick: () => {
+              item.onClick(event, {
+                id: data.gbId
+              })
+            }
+          })
+        }
+      }
+      if (allMenuItem.length === 0) {
+        return
+      }
+
+      this.$contextmenu({
+        items: allMenuItem,
+        event, // 鼠标事件信息
+        customClass: 'custom-class', // 自定义菜单 class
+        zIndex: 3000 // 菜单样式 z-index
+      })
     }
   }
 }
 </script>
 
-<style>
-.device-tree-main-box {
-  text-align: left;
-}
-
-.device-online {
-  color: #252525;
-}
-
-.device-offline {
-  color: #727272;
-}
+<style scoped>
 
 .custom-tree-node .el-radio__label {
   padding-left: 4px !important;
-}
-
-.tree-scroll{
-  width: 200px;
-  border: 1px solid #E7E7E7;
-  height: 100%;
 }
 
 .flow-tree {
@@ -474,11 +551,11 @@ export default {
   overflow-x: auto;
 }
 .channel-list-li {
-  height: 24px;
+  height: 40px;
   align-items: center;
   cursor: pointer;
   display: grid;
   grid-template-columns: 26px 1fr;
-  margin-bottom: 18px
+  margin-bottom: 10px;
 }
 </style>

@@ -5,11 +5,8 @@ import com.genersoft.iot.vmp.gb28181.bean.Device;
 import com.genersoft.iot.vmp.gb28181.bean.Platform;
 import com.genersoft.iot.vmp.gb28181.bean.RecordInfo;
 import com.genersoft.iot.vmp.gb28181.bean.RecordItem;
-import com.genersoft.iot.vmp.gb28181.event.EventPublisher;
 import com.genersoft.iot.vmp.gb28181.event.record.RecordInfoEndEvent;
 import com.genersoft.iot.vmp.gb28181.event.record.RecordInfoEvent;
-import com.genersoft.iot.vmp.gb28181.transmit.callback.DeferredResultHolder;
-import com.genersoft.iot.vmp.gb28181.transmit.callback.RequestMessage;
 import com.genersoft.iot.vmp.gb28181.transmit.event.request.SIPRequestProcessorParent;
 import com.genersoft.iot.vmp.gb28181.transmit.event.request.impl.message.IMessageHandler;
 import com.genersoft.iot.vmp.gb28181.transmit.event.request.impl.message.response.ResponseMessageHandler;
@@ -20,10 +17,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.dom4j.Element;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.ObjectUtils;
 
@@ -54,7 +49,7 @@ public class RecordInfoResponseMessageHandler extends SIPRequestProcessorParent 
     private ApplicationEventPublisher applicationEventPublisher;
 
     @Autowired
-    private RedisTemplate<Object, Object> redisTemplate;
+    private RedisTemplate<String, Object> redisTemplate;
 
     private Long recordInfoTtl = 1800L;
 
@@ -124,7 +119,10 @@ public class RecordInfoResponseMessageHandler extends SIPRequestProcessorParent 
                     }
                     Map<String, String> map = recordList.stream()
                             .filter(record -> record.getDeviceId() != null)
-                            .collect(Collectors.toMap(record -> record.getStartTime()+ record.getEndTime(), UJson::writeJson));
+                            .collect(Collectors.toMap(record -> record.getStartTime()+ record.getEndTime(), UJson::writeJson,(existing, replacement) -> {
+						log.warn("[国标录像] 发现重复录像记录，时间段: {}, 保留第一条", existing);
+						return existing;
+					}));
                     // 获取任务结果数据
                     String resKey = VideoManagerConstants.REDIS_RECORD_INFO_RES_PRE + channelId + sn;
                     redisTemplate.opsForHash().putAll(resKey, map);

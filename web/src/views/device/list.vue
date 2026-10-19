@@ -91,7 +91,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="订阅" min-width="160">
+      <el-table-column label="订阅" min-width="240">
         <template v-slot:default="scope">
           <el-checkbox
             label="目录"
@@ -103,12 +103,36 @@
             :checked="scope.row.subscribeCycleForMobilePosition > 0"
             @change="(e)=>subscribeForMobilePosition(scope.row.id, e)"
           />
-          <!--          <el-checkbox label="报警" disabled :checked="scope.row.subscribeCycleForAlarm > 0"></el-checkbox>-->
+          <el-checkbox
+            label="报警"
+            :checked="scope.row.subscribeCycleForAlarm > 0"
+            @change="(e)=>subscribeForAlarm(scope.row.id, e)"
+          />
         </template>
       </el-table-column>
-      <el-table-column prop="keepaliveTime" label="最近心跳" min-width="140" />
-      <el-table-column prop="registerTime" label="最近注册" min-width="140" />
-      <el-table-column label="操作" min-width="300" fixed="right">
+      <el-table-column label="统计" min-width="140">
+        <template v-slot:default="scope">
+          <el-button
+            type="text"
+            size="mini"
+            :disabled="scope.row.online===0"
+            icon="iconfont-14 icon-xintiao"
+            title="心跳时间统计"
+            @click="getKeepaliveTimeStatistics(scope.row.deviceId)"
+          >心跳
+          </el-button>
+          <el-button
+            type="text"
+            size="mini"
+            :disabled="scope.row.online===0"
+            icon="iconfont-14 icon-register"
+            title="注册时间统计"
+            @click="getRegisterTimeStatistics(scope.row.deviceId)"
+          >注册
+          </el-button>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" min-width="260" fixed="right">
         <template v-slot:default="scope">
           <el-button
             type="text"
@@ -130,25 +154,7 @@
           <el-divider direction="vertical" />
           <el-button size="medium" icon="el-icon-edit" type="text" @click="edit(scope.row)">编辑</el-button>
           <el-divider direction="vertical" />
-          <el-dropdown @command="(command)=>{moreClick(command, scope.row)}">
-            <el-button size="medium" type="text">
-              操作<i class="el-icon-arrow-down el-icon--right" />
-            </el-button>
-            <el-dropdown-menu>
-              <el-dropdown-item command="delete" style="color: #f56c6c">
-                删除
-              </el-dropdown-item>
-              <el-dropdown-item command="setGuard" :disabled="!scope.row.onLine">
-                布防
-              </el-dropdown-item>
-              <el-dropdown-item command="resetGuard" :disabled="!scope.row.onLine">
-                撤防
-              </el-dropdown-item>
-              <el-dropdown-item command="syncBasicParam" :disabled="!scope.row.onLine">
-                基础配置同步
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </el-dropdown>
+          <el-button size="medium" type="text" style="color: #f56c6c" @click="deleteDevice(scope.row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -165,13 +171,15 @@
     <deviceEdit ref="deviceEdit" />
     <syncChannelProgress ref="syncChannelProgress" />
     <configInfo ref="configInfo" />
+    <timeStatistics ref="timeStatistics" />
   </div>
 </template>
 
 <script>
-import deviceEdit from '../dialog/deviceEdit.vue'
-import syncChannelProgress from '../dialog/SyncChannelProgress.vue'
+import deviceEdit from './edit.vue'
+import syncChannelProgress from './dialog/SyncChannelProgress.vue'
 import configInfo from '../dialog/configInfo.vue'
+import timeStatistics from './dialog/timeStatistics.vue'
 import Vue from 'vue'
 
 export default {
@@ -179,7 +187,8 @@ export default {
   components: {
     configInfo,
     deviceEdit,
-    syncChannelProgress
+    syncChannelProgress,
+    timeStatistics
   },
   data() {
     return {
@@ -236,7 +245,13 @@ export default {
       }).then((data) => {
         this.total = data.total
         this.deviceList = data.list
-      }).finally(() => {
+      }).catch((error) => {
+          this.$message({
+            showClose: true,
+            message: error,
+            type: 'error'
+          })
+        }).finally(() => {
         this.getDeviceListLoading = false
       })
     },
@@ -255,6 +270,13 @@ export default {
         this.$store.dispatch('device/deleteDevice', row.deviceId)
           .then((data) => {
             this.getDeviceList()
+          })
+          .catch((error) => {
+            this.$message({
+              showClose: true,
+              message: error,
+              type: 'error'
+            })
           })
       })
     },
@@ -284,7 +306,15 @@ export default {
           this.$refs.syncChannelProgress.openDialog(itemData.deviceId, () => {
             this.getDeviceList()
           })
-        }).finally(() => {
+        })
+        .catch((error) => {
+          this.$message({
+            showClose: true,
+            message: error,
+            type: 'error'
+          })
+        })
+        .finally(() => {
           this.getDeviceList()
         })
     },
@@ -336,45 +366,7 @@ export default {
           this.$refs.configInfo.openDialog(data)
         })
     },
-    moreClick: function(command, itemData) {
-      if (command === 'setGuard') {
-        this.setGuard(itemData)
-      } else if (command === 'resetGuard') {
-        this.resetGuard(itemData)
-      } else if (command === 'delete') {
-        this.deleteDevice(itemData)
-      } else if (command === 'syncBasicParam') {
-        this.syncBasicParam(itemData)
-      }
-    },
-    setGuard: function(itemData) {
-      this.$store.dispatch('device/setGuard', itemData.deviceId)
-        .then((data) => {
-          this.$message.success({
-            showClose: true,
-            message: '布防成功'
-          })
-        }).catch((error) => {
-          this.$message.error({
-            showClose: true,
-            message: error.message
-          })
-        })
-    },
-    resetGuard: function(itemData) {
-      this.$store.dispatch('device/resetGuard', itemData.deviceId)
-        .then((data) => {
-          this.$message.success({
-            showClose: true,
-            message: '撤防成功'
-          })
-        }).catch((error) => {
-          this.$message.error({
-            showClose: true,
-            message: error.message
-          })
-        })
-    },
+
     subscribeForCatalog: function(data, value) {
       this.$store.dispatch('device/subscribeCatalog', {
         id: data,
@@ -408,19 +400,27 @@ export default {
         })
       })
     },
-    syncBasicParam: function(data) {
-      this.$store.dispatch('device/queryBasicParam')
-        .then((data) => {
-          this.$message.success({
-            showClose: true,
-            message: `配置已同步，当前心跳间隔： ${data.BasicParam.HeartBeatInterval} 心跳间隔:${res.data.data.BasicParam.HeartBeatCount}`
-          })
-        }).catch((error) => {
-          this.$message.error({
-            showClose: true,
-            message: error.message
-          })
+    subscribeForAlarm: function(data, value) {
+      this.$store.dispatch('device/subscribeForAlarm', {
+        id: data,
+        cycle: value ? 60 : 0
+      }).then((data) => {
+        this.$message.success({
+          showClose: true,
+          message: value ? '订阅成功' : '取消订阅成功'
         })
+      }).catch((error) => {
+        this.$message.error({
+          showClose: true,
+          message: error.message
+        })
+      })
+    },
+    getKeepaliveTimeStatistics: function(deviceId) {
+      this.$refs.timeStatistics.openDialog('心跳时间统计', 'device/getKeepaliveTimeStatistics', deviceId, 60)
+    },
+    getRegisterTimeStatistics: function(deviceId) {
+      this.$refs.timeStatistics.openDialog('注册时间统计', 'device/getRegisterTimeStatistics', deviceId, 10)
     }
   }
 }

@@ -66,11 +66,15 @@ public interface IPlayService {
 
     void getSnap(String deviceId, String channelId, String fileName, ErrorCallback errorCallback);
 
+    void getSnap(CommonGBChannel channel, ErrorCallback<byte[]> errorCallback);
+
     void stop(InviteSessionType type, Device device, DeviceChannel channel, String stream);
 
     void stop(InviteInfo inviteInfo);
 
     void play(CommonGBChannel channel, Boolean record, ErrorCallback<StreamInfo> callback);
+
+    void stopPlay(InviteSessionType inviteSessionType, CommonGBChannel channel);
 
     void stop(InviteSessionType inviteSessionType, CommonGBChannel channel, String stream);
 

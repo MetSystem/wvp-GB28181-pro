@@ -1,6 +1,6 @@
 <template>
   <div id="channelList" style="height: calc(100vh - 124px);">
-    <div v-if="!editId" style="height: 100%">
+    <div v-if="!editId && !ptzConfigChannelDeviceId && !cameraConfigDeviceId" style="height: 100%">
       <el-form :inline="true" size="mini">
         <el-form-item style="margin-right: 2rem">
           <el-page-header content="通道列表" @back="showDevice" />
@@ -97,7 +97,7 @@
             <span v-if="!scope.row.longitude || !scope.row.latitude">无</span>
           </template>
         </el-table-column>
-        <el-table-column prop="ptzType" label="云台类型" min-width="100">
+        <el-table-column prop="ptzType" label="摄像头类型" min-width="100">
           <template v-slot:default="scope">
             <div>{{ scope.row.ptzTypeText }}</div>
           </template>
@@ -181,14 +181,16 @@
                 更多<i class="el-icon-arrow-down el-icon--right" />
               </el-button>
               <el-dropdown-menu>
+                <el-dropdown-item command="audioTalk" :disabled="device == null || device.online === 0">
+                  语音对讲</el-dropdown-item>
                 <el-dropdown-item command="records" :disabled="device == null || device.online === 0">
                   设备录像</el-dropdown-item>
+                <el-dropdown-item command="ptzConfig" :disabled="device == null || device.online === 0">
+                  云台配置</el-dropdown-item>
+                <el-dropdown-item command="cameraConfig" :disabled="device == null || device.online === 0">
+                  相机配置</el-dropdown-item>
                 <el-dropdown-item command="cloudRecords" :disabled="device == null || device.online === 0">
                   云端录像</el-dropdown-item>
-                <el-dropdown-item command="record" :disabled="device == null || device.online === 0">
-                  设备录像控制-开始</el-dropdown-item>
-                <el-dropdown-item command="stopRecord" :disabled="device == null || device.online === 0">
-                  设备录像控制-停止</el-dropdown-item>
               </el-dropdown-menu>
 
             </el-dropdown>
@@ -209,19 +211,28 @@
 
     <devicePlayer ref="devicePlayer" />
     <channel-edit v-if="editId" :id="editId" :close-edit="closeEdit" />
+    <ptzConfig v-if="ptzConfigChannelDeviceId" :device-id="ptzConfigDeviceId" :channel-device-id="ptzConfigChannelDeviceId" @close="closePtzConfig" />
+    <cameraConfig v-if="cameraConfigDeviceId" :device-id="deviceId" :channel-device-id="cameraConfigDeviceId" @close="cameraConfigDeviceId = null" />
+    <audioTalk ref="audioTalk" />
 
   </div>
 </template>
 
 <script>
-import devicePlayer from '../../dialog/devicePlayer.vue'
+import devicePlayer from '../dialog/devicePlayer.vue'
+import audioTalk from '../dialog/audioTalk.vue'
 import Edit from './edit.vue'
+import ptzConfig from '@/views/device/channel/ptzConfig.vue'
+import cameraConfig from './cameraConfig.vue'
 
 export default {
   name: 'ChannelList',
   components: {
     devicePlayer,
-    ChannelEdit: Edit
+    audioTalk,
+    ChannelEdit: Edit,
+    ptzConfig,
+    cameraConfig
   },
   props: {
     defaultPage: {
@@ -258,6 +269,9 @@ export default {
       total: 0,
       beforeUrl: '/device',
       editId: null,
+      ptzConfigDeviceId: null,
+      ptzConfigChannelDeviceId: null,
+      cameraConfigDeviceId: null,
       loadSnap: {},
       ptzTypes: {
         0: '未知',
@@ -278,7 +292,6 @@ export default {
     }
   },
   mounted() {
-    console.log(23222)
     if (this.deviceId) {
       this.$store.dispatch('device/queryDeviceOne', this.deviceId)
         .then(data => {
@@ -360,19 +373,35 @@ export default {
           setTimeout(() => {
             this.initData()
           }, 1000)
-        }).finally(() => {
+        })
+        .catch((error) => {
+          console.log(error)
+          this.$message.error({
+            showClose: true,
+            message: error
+          })
+        })
+        .finally(() => {
           itemData.playLoading = false
         })
+    },
+    closePtzConfig: function() {
+      this.ptzConfigDeviceId = null
+      this.ptzConfigChannelDeviceId = null
     },
     moreClick: function(command, itemData) {
       if (command === 'records') {
         this.queryRecords(itemData)
       } else if (command === 'cloudRecords') {
         this.queryCloudRecords(itemData)
-      } else if (command === 'record') {
-        this.startRecord(itemData)
-      } else if (command === 'stopRecord') {
-        this.stopRecord(itemData)
+      } else if (command === 'ptzConfig') {
+        console.log(itemData.channelId)
+        this.ptzConfigDeviceId = this.deviceId
+        this.ptzConfigChannelDeviceId = itemData.deviceId
+      } else if (command === 'audioTalk') {
+        this.$refs.audioTalk.openDialog(this.deviceId, itemData.deviceId)
+      } else if (command === 'cameraConfig') {
+        this.cameraConfigDeviceId = itemData.deviceId
       }
     },
     queryRecords: function(itemData) {
@@ -387,42 +416,11 @@ export default {
 
       this.$router.push(`/cloudRecord/detail/rtp/${deviceId}_${channelId}`)
     },
-    startRecord: function(itemData) {
-      this.$store.dispatch('device/deviceRecord', {
-        deviceId: this.deviceId,
-        channelId: itemData.deviceId,
-        recordCmdStr: 'Record'
-      }).then(data => {
-        this.$message.success({
-          showClose: true,
-          message: '开始录像成功'
-        })
-      }).catch((error) => {
-        this.$message.error({
-          showClose: true,
-          message: error.message
-        })
-      })
-    },
-    stopRecord: function(itemData) {
-      this.$store.dispatch('device/deviceRecord', {
-        deviceId: this.deviceId,
-        channelId: itemData.deviceId,
-        recordCmdStr: 'StopRecord'
-      }).then(data => {
-        this.$message.success({
-          showClose: true,
-          message: '停止录像成功'
-        })
-      }).catch((error) => {
-        this.$message.error({
-          showClose: true,
-          message: error.message
-        })
-      })
-    },
     stopDevicePush: function(itemData) {
-      this.$store.dispatch('play/stop', [this.deviceId, itemData.deviceId]).then(data => {
+      this.$store.dispatch('play/stop', {
+        deviceId: this.deviceId,
+        channelId: itemData.deviceId
+      }).then(data => {
         this.initData()
       }).catch((error) => {
         if (error.response.status === 402) { // 已经停止过

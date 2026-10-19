@@ -1,6 +1,7 @@
 package com.genersoft.iot.vmp.vmanager.ps;
 
 import com.genersoft.iot.vmp.common.VideoManagerConstants;
+import com.genersoft.iot.vmp.common.enums.MediaStreamUtil;
 import com.genersoft.iot.vmp.conf.DynamicTask;
 import com.genersoft.iot.vmp.conf.UserSetting;
 import com.genersoft.iot.vmp.conf.exception.ControllerException;
@@ -11,8 +12,10 @@ import com.genersoft.iot.vmp.media.event.hook.Hook;
 import com.genersoft.iot.vmp.media.event.hook.HookSubscribe;
 import com.genersoft.iot.vmp.media.event.hook.HookType;
 import com.genersoft.iot.vmp.media.service.IMediaServerService;
+import com.genersoft.iot.vmp.service.IReceiveRtpServerService;
 import com.genersoft.iot.vmp.service.ISendRtpServerService;
-import com.genersoft.iot.vmp.service.bean.SSRCInfo;
+import com.genersoft.iot.vmp.service.bean.InviteErrorCode;
+import com.genersoft.iot.vmp.service.bean.RTPServerParam;
 import com.genersoft.iot.vmp.utils.redis.RedisUtil;
 import com.genersoft.iot.vmp.vmanager.bean.ErrorCode;
 import com.genersoft.iot.vmp.vmanager.bean.OtherPsSendInfo;
@@ -49,6 +52,9 @@ public class PsController {
     private ISendRtpServerService sendRtpServerService;
 
     @Autowired
+    private IReceiveRtpServerService receiveRtpServerService;
+
+    @Autowired
     private UserSetting userSetting;
 
     @Autowired
@@ -56,7 +62,7 @@ public class PsController {
 
 
     @Autowired
-    private RedisTemplate<Object, Object> redisTemplate;
+    private RedisTemplate<String, Object> redisTemplate;
 
 
     @GetMapping(value = "/receive/open")
@@ -92,37 +98,48 @@ public class PsController {
             }
         }
         String receiveKey = VideoManagerConstants.WVP_OTHER_RECEIVE_PS_INFO + userSetting.getServerId() + "_" + callId + "_"  + stream;
-        SSRCInfo ssrcInfo = mediaServerService.openRTPServer(mediaServer, stream, ssrcInt + "", false, false, null, false, false, false, tcpMode);
 
-        if (ssrcInfo.getPort() == 0) {
+        RTPServerParam rtpServerParam = new RTPServerParam();
+        rtpServerParam.setMediaServer(mediaServer);
+        rtpServerParam.setApp(MediaStreamUtil.RTP_APP);
+        rtpServerParam.setStreamId(stream);
+        rtpServerParam.setSsrc(ssrcInt);
+        rtpServerParam.setTcpMode(tcpMode);
+
+        int rtpServerPort = receiveRtpServerService.openCommonRTPServer(rtpServerParam, ((code, msg, data) -> {
+            if (callBack == null) {
+                return;
+            }
+            if (code == InviteErrorCode.SUCCESS.getCode()) {
+                log.info("[第三方PS服务对接->开启收流和获取发流信息] 成功回调，callId->{}, data->{}", callId, data);
+                // 将信息写入redis中，以备后用
+                redisTemplate.delete(receiveKey);
+                OkHttpClient.Builder httpClientBuilder = new OkHttpClient.Builder();
+                OkHttpClient client = httpClientBuilder.build();
+                String url = callBack + "?callId="  + callId;
+                Request request = new Request.Builder().get().url(url).build();
+                try {
+                    client.newCall(request).execute();
+                } catch (IOException e) {
+                    log.error("[第三方PS服务对接->开启收流和获取发流信息] 成功回调 callId->{}, 发送回调失败", callId, e);
+                }
+            } else {
+                log.info("[第三方PS服务对接->开启收流和获取发流信息] 失败回调，callId->{}, code->{}, msg->{}", callId, code, msg);
+                // 将信息写入redis中，以备后用
+                redisTemplate.delete(receiveKey);
+            }
+        }));
+
+        if (rtpServerPort == 0) {
             throw new ControllerException(ErrorCode.ERROR100.getCode(), "获取端口失败");
         }
-        // 注册回调如果rtp收流超时则通过回调发送通知
-        if (callBack != null) {
-            Hook hook = Hook.getInstance(HookType.on_rtp_server_timeout, "rtp", stream, mediaServer.getId());
-            // 订阅 zlm启动事件, 新的zlm也会从这里进入系统
-            hookSubscribe.addSubscribe(hook,
-                    (hookData)->{
-                        if (stream.equals(hookData.getStream())) {
-                            log.info("[第三方PS服务对接->开启收流和获取发流信息] 等待收流超时 callId->{}, 发送回调", callId);
-                            // 将信息写入redis中，以备后用
-                            redisTemplate.delete(receiveKey);
-                            OkHttpClient.Builder httpClientBuilder = new OkHttpClient.Builder();
-                            OkHttpClient client = httpClientBuilder.build();
-                            String url = callBack + "?callId="  + callId;
-                            Request request = new Request.Builder().get().url(url).build();
-                            try {
-                                client.newCall(request).execute();
-                            } catch (IOException e) {
-                                log.error("[第三方PS服务对接->开启收流和获取发流信息] 等待收流超时 callId->{}, 发送回调失败", callId, e);
-                            }
-                            hookSubscribe.removeSubscribe(hook);
-                        }
-                    });
-        }
+
+        // 补充鉴权参数
+        receiveRtpServerService.addAuthenticateInfo(stream, null, false, false, null);
+
         OtherPsSendInfo otherPsSendInfo = new OtherPsSendInfo();
         otherPsSendInfo.setReceiveIp(mediaServer.getSdpIp());
-        otherPsSendInfo.setReceivePort(ssrcInfo.getPort());
+        otherPsSendInfo.setReceivePort(rtpServerPort);
         otherPsSendInfo.setCallId(callId);
         otherPsSendInfo.setStream(stream);
 
@@ -149,13 +166,13 @@ public class PsController {
     public void closeRtpServer(String stream) {
         log.info("[第三方PS服务对接->关闭收流] stream->{}", stream);
         MediaServer mediaServerItem = mediaServerService.getDefaultMediaServer();
-        mediaServerService.closeRTPServer(mediaServerItem, stream);
+        receiveRtpServerService.closeRTPServer(mediaServerItem, MediaStreamUtil.RTP_APP, stream);
         String receiveKey = VideoManagerConstants.WVP_OTHER_RECEIVE_PS_INFO + userSetting.getServerId() + "_*_"  + stream;
         List<Object> scan = RedisUtil.scan(redisTemplate, receiveKey);
         if (!scan.isEmpty()) {
             for (Object key : scan) {
                 // 将信息写入redis中，以备后用
-                redisTemplate.delete(key);
+                redisTemplate.delete((String) key);
             }
         }
     }

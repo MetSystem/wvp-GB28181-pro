@@ -122,7 +122,6 @@ public class DeviceChannel extends CommonGBChannel {
 	@Schema(description = "经度 WGS-84坐标系")
 	private Double longitude;
 
-
 	@MessageElementForCatalog("Latitude")
 	@Schema(description = ",纬度 WGS-84坐标系")
 	private Double latitude;
@@ -192,6 +191,8 @@ public class DeviceChannel extends CommonGBChannel {
 	@Schema(description = "通道类型， 默认0, 0： 普通通道，1 行政区划 2 业务分组/虚拟组织")
 	private int channelType;
 
+	private String dbKey;
+
 	private Integer dataType = ChannelDataType.GB28181;
 
 	public void setPtzType(int ptzType) {
@@ -236,7 +237,11 @@ public class DeviceChannel extends CommonGBChannel {
 		GbCode gbCode = GbCode.decode(deviceChannel.getDeviceId());
 		if (gbCode != null && "138".equals(gbCode.getTypeCode())) {
 			deviceChannel.setHasAudio(true);
+            if (deviceChannel.getEnableBroadcast() == null && "138".equals(gbCode.getTypeCode())) {
+                deviceChannel.setEnableBroadcast(1);
+            }
 		}
+
 		return deviceChannel;
 	}
 
@@ -244,6 +249,7 @@ public class DeviceChannel extends CommonGBChannel {
 		Element deviceElement = element.element("DeviceID");
 		DeviceChannel deviceChannel = new DeviceChannel();
 		deviceChannel.setDeviceId(deviceElement.getText());
+		deviceChannel.setDataType(ChannelDataType.GB28181);
 		return deviceChannel;
 	}
 

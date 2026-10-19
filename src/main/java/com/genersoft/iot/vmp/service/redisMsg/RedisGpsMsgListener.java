@@ -6,6 +6,7 @@ import com.genersoft.iot.vmp.service.bean.GPSMsgInfo;
 import com.genersoft.iot.vmp.storager.IRedisCatchStorage;
 import com.genersoft.iot.vmp.streamPush.service.IStreamPushService;
 import com.genersoft.iot.vmp.utils.DateUtil;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,16 +30,12 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class RedisGpsMsgListener implements MessageListener {
 
-    @Autowired
-    private IRedisCatchStorage redisCatchStorage;
+    private final IRedisCatchStorage redisCatchStorage;
 
-    @Autowired
-    private IStreamPushService streamPushService;
-
-    @Autowired
-    private IGbChannelService channelService;
+    private final IGbChannelService channelService;
 
     private final ConcurrentLinkedQueue<Message> taskQueue = new ConcurrentLinkedQueue<>();
 
@@ -68,8 +65,9 @@ public class RedisGpsMsgListener implements MessageListener {
         for (Message msg : messageDataList) {
             try {
                 GPSMsgInfo gpsMsgInfo = JSON.parseObject(msg.getBody(), GPSMsgInfo.class);
+                gpsMsgInfo.setStored(false);
                 gpsMsgInfo.setTime(DateUtil.ISO8601Toyyyy_MM_dd_HH_mm_ss(gpsMsgInfo.getTime()));
-                log.info("[REDIS的位置变化通知], {}", JSON.toJSONString(gpsMsgInfo));
+                log.debug("[REDIS的位置变化通知], {}", JSON.toJSONString(gpsMsgInfo));
                 // 只是放入redis缓存起来
                 redisCatchStorage.updateGpsMsgInfo(gpsMsgInfo);
             } catch (Exception e) {

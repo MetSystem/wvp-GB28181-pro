@@ -157,7 +157,7 @@ export function startPlayback(params) {
   const { phoneNumber, channelId, startTime, endTime, type, rate, playbackType, playbackSpeed } = params
   return request({
     method: 'get',
-    url: '/api/jt1078/playback/start/',
+    url: '/api/jt1078/playback/start',
     params: {
       phoneNumber: phoneNumber,
       channelId: channelId,
@@ -204,7 +204,7 @@ export function stopPlayback(params) {
   const { phoneNumber, channelId, streamId } = params
   return request({
     method: 'get',
-    url: '/api/jt1078/playback/stop/',
+    url: '/api/jt1078/playback/stop',
     params: {
       phoneNumber: phoneNumber,
       channelId: channelId,

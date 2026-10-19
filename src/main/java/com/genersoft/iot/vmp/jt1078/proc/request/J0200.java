@@ -1,7 +1,8 @@
 package com.genersoft.iot.vmp.jt1078.proc.request;
 
 import com.genersoft.iot.vmp.jt1078.annotation.MsgId;
-import com.genersoft.iot.vmp.jt1078.bean.*;
+import com.genersoft.iot.vmp.jt1078.bean.JTPositionAdditionalInfo;
+import com.genersoft.iot.vmp.jt1078.bean.JTPositionBaseInfo;
 import com.genersoft.iot.vmp.jt1078.proc.Header;
 import com.genersoft.iot.vmp.jt1078.proc.response.J8001;
 import com.genersoft.iot.vmp.jt1078.proc.response.Rs;
@@ -9,8 +10,6 @@ import com.genersoft.iot.vmp.jt1078.service.Ijt1078Service;
 import com.genersoft.iot.vmp.jt1078.session.Session;
 import io.netty.buffer.ByteBuf;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEvent;
 
 /**
@@ -26,7 +25,9 @@ public class J0200 extends Re {
     @Override
     protected Rs decode0(ByteBuf buf, Header header, Session session) {
         positionInfo = JTPositionBaseInfo.decode(buf);
-        log.debug("[JT-位置汇报]: phoneNumber={}  {}", header.getPhoneNumber(), positionInfo.toSimpleString());
+        if (log.isDebugEnabled()) {
+            log.debug("[JT-位置汇报]: phoneNumber={}  {}", header.getPhoneNumber(), positionInfo.toSimpleString());
+        }
         // 读取附加信息
 //        JTPositionAdditionalInfo positionAdditionalInfo = new JTPositionAdditionalInfo();
 //        Map<Integer, byte[]> additionalMsg = new HashMap<>();

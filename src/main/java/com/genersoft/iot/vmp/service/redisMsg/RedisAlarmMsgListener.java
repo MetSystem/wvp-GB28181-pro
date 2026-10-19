@@ -4,7 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.genersoft.iot.vmp.conf.UserSetting;
 import com.genersoft.iot.vmp.gb28181.bean.AlarmChannelMessage;
 import com.genersoft.iot.vmp.gb28181.bean.Device;
-import com.genersoft.iot.vmp.gb28181.bean.DeviceAlarm;
+import com.genersoft.iot.vmp.gb28181.bean.DeviceAlarmNotify;
 import com.genersoft.iot.vmp.gb28181.bean.Platform;
 import com.genersoft.iot.vmp.gb28181.service.IDeviceChannelService;
 import com.genersoft.iot.vmp.gb28181.service.IDeviceService;
@@ -14,6 +14,7 @@ import com.genersoft.iot.vmp.gb28181.transmit.cmd.ISIPCommander;
 import com.genersoft.iot.vmp.gb28181.transmit.cmd.ISIPCommanderForPlatform;
 import com.genersoft.iot.vmp.service.IMobilePositionService;
 import com.genersoft.iot.vmp.utils.DateUtil;
+import jakarta.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.Message;
@@ -24,7 +25,6 @@ import org.springframework.util.ObjectUtils;
 
 import javax.sip.InvalidArgumentException;
 import javax.sip.SipException;
-import javax.validation.constraints.NotNull;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
@@ -95,12 +95,12 @@ public class RedisAlarmMsgListener implements MessageListener {
                 }
                 String chanelId = alarmChannelMessage.getGbId();
 
-                DeviceAlarm deviceAlarm = new DeviceAlarm();
+                DeviceAlarmNotify deviceAlarm = new DeviceAlarmNotify();
                 deviceAlarm.setCreateTime(DateUtil.getNow());
                 deviceAlarm.setChannelId(chanelId);
                 deviceAlarm.setAlarmDescription(alarmChannelMessage.getAlarmDescription());
-                deviceAlarm.setAlarmMethod("" + alarmChannelMessage.getAlarmSn());
-                deviceAlarm.setAlarmType("" + alarmChannelMessage.getAlarmType());
+                deviceAlarm.setAlarmMethod(alarmChannelMessage.getAlarmSn());
+                deviceAlarm.setAlarmType(alarmChannelMessage.getAlarmType());
                 deviceAlarm.setAlarmPriority("1");
                 deviceAlarm.setAlarmTime(DateUtil.getNow());
                 deviceAlarm.setLongitude(0);

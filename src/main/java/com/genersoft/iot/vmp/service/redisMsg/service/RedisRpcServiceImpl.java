@@ -10,8 +10,9 @@ import com.genersoft.iot.vmp.conf.redis.RedisRpcConfig;
 import com.genersoft.iot.vmp.conf.redis.bean.RedisRpcRequest;
 import com.genersoft.iot.vmp.conf.redis.bean.RedisRpcResponse;
 import com.genersoft.iot.vmp.gb28181.bean.*;
+import com.genersoft.iot.vmp.gb28181.controller.bean.ChannelListForRpcParam;
 import com.genersoft.iot.vmp.gb28181.event.subscribe.catalog.CatalogEvent;
-import com.genersoft.iot.vmp.gb28181.session.SSRCFactory;
+import com.genersoft.iot.vmp.gb28181.session.SendSsrcFactory;
 import com.genersoft.iot.vmp.media.event.hook.Hook;
 import com.genersoft.iot.vmp.media.event.hook.HookSubscribe;
 import com.genersoft.iot.vmp.media.event.hook.HookType;
@@ -43,10 +44,10 @@ public class RedisRpcServiceImpl implements IRedisRpcService {
     private HookSubscribe hookSubscribe;
 
     @Autowired
-    private SSRCFactory ssrcFactory;
+    private SendSsrcFactory sendSsrcFactory;
 
     @Autowired
-    private RedisTemplate<Object, Object> redisTemplate;
+    private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
     private IMediaServerService mediaServerService;
@@ -73,7 +74,7 @@ public class RedisRpcServiceImpl implements IRedisRpcService {
     }
 
     @Override
-    public WVPResult startSendRtp(String callId, SendRtpInfo sendRtpItem) {
+    public WVPResult<?> startSendRtp(String callId, SendRtpInfo sendRtpItem) {
         log.info("[请求其他WVP] 开始推流，wvp：{}， {}/{}", sendRtpItem.getServerId(), sendRtpItem.getApp(), sendRtpItem.getStream());
         RedisRpcRequest request = buildRequest("sendRtp/startSendRtp", callId);
         request.setToId(sendRtpItem.getServerId());
@@ -106,9 +107,8 @@ public class RedisRpcServiceImpl implements IRedisRpcService {
 
             // 读取redis中的上级点播信息，生成sendRtpItm发送出去
             if (sendRtpItem.getSsrc() == null) {
-                // 上级平台点播时不使用上级平台指定的ssrc，使用自定义的ssrc，参考国标文档-点播外域设备媒体流SSRC处理方式
-                String ssrc = "Play".equalsIgnoreCase(sendRtpItem.getSessionName()) ? ssrcFactory.getPlaySsrc(hookData.getMediaServer().getId()) : ssrcFactory.getPlayBackSsrc(hookData.getMediaServer().getId());
-                sendRtpItem.setSsrc(ssrc);
+                sendRtpItem.setSsrc(sendSsrcFactory.getSendSsrc(
+                        "Play".equalsIgnoreCase(sendRtpItem.getSessionName()) ? "0" : "1"));
             }
             sendRtpItem.setMediaServerId(hookData.getMediaServer().getId());
             sendRtpItem.setLocalIp(hookData.getMediaServer().getSdpIp());
@@ -228,10 +228,85 @@ public class RedisRpcServiceImpl implements IRedisRpcService {
     }
 
     @Override
+    public void subscribeAlarm(int id, int cycle) {
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("id", id);
+        jsonObject.put("cycle", cycle);
+        RedisRpcRequest request = buildRequest("device/subscribeAlarm", jsonObject);
+        redisRpcConfig.request(request, 10, TimeUnit.MILLISECONDS);
+    }
+
+    @Override
     public boolean updatePlatform(String serverId, Platform platform) {
         RedisRpcRequest request = buildRequest("platform/update", platform);
         request.setToId(serverId);
         RedisRpcResponse response = redisRpcConfig.request(request, 40, TimeUnit.MILLISECONDS);
+        if(response == null) {
+            return false;
+        }
+        return Boolean.parseBoolean(response.getBody().toString());
+    }
+
+    @Override
+    public boolean deletePlatform(String serverId, Integer platformId) {
+        RedisRpcRequest request = buildRequest("platform/delete", platformId);
+        request.setToId(serverId);
+        RedisRpcResponse response = redisRpcConfig.request(request, 20, TimeUnit.SECONDS);
+        if(response == null) {
+            return false;
+        }
+        return Boolean.parseBoolean(response.getBody().toString());
+    }
+
+    @Override
+    public int addPlatformChannelList(String serverId, ChannelListForRpcParam channelListForRpcParam) {
+        RedisRpcRequest request = buildRequest("platform/addChannelList", channelListForRpcParam);
+        request.setToId(serverId);
+        RedisRpcResponse response = redisRpcConfig.request(request, 20, TimeUnit.SECONDS);
+        if(response == null) {
+            return 0;
+        }
+        return Integer.parseInt(response.getBody().toString());
+    }
+
+    @Override
+    public int removeAllPlatformChannel(String serverId, Integer platformId) {
+        RedisRpcRequest request = buildRequest("platform/removeAllChannel", platformId);
+        request.setToId(serverId);
+        RedisRpcResponse response = redisRpcConfig.request(request, 20, TimeUnit.SECONDS);
+        if(response == null) {
+            return 0;
+        }
+        return Integer.parseInt(response.getBody().toString());
+    }
+
+    @Override
+    public int removePlatformChannelList(String serverId, ChannelListForRpcParam channelListForRpcParam) {
+        RedisRpcRequest request = buildRequest("platform/removeChannelList", channelListForRpcParam);
+        request.setToId(serverId);
+        RedisRpcResponse response = redisRpcConfig.request(request, 20, TimeUnit.SECONDS);
+        if(response == null) {
+            return 0;
+        }
+        return Integer.parseInt(response.getBody().toString());
+    }
+
+    @Override
+    public boolean updateCustomPlatformChannel(String serverId, PlatformChannel channel) {
+        RedisRpcRequest request = buildRequest("platform/updateCustomChannel", channel);
+        request.setToId(serverId);
+        RedisRpcResponse response = redisRpcConfig.request(request, 20, TimeUnit.SECONDS);
+        if(response == null) {
+            return false;
+        }
+        return Boolean.parseBoolean(response.getBody().toString());
+    }
+
+    @Override
+    public boolean pushPlatformChannel(String serverId, Integer platformId) {
+        RedisRpcRequest request = buildRequest("platform/pushChannel", platformId);
+        request.setToId(serverId);
+        RedisRpcResponse response = redisRpcConfig.request(request, 20, TimeUnit.SECONDS);
         if(response == null) {
             return false;
         }
@@ -276,9 +351,17 @@ public class RedisRpcServiceImpl implements IRedisRpcService {
     }
 
     @Override
-    public WVPResult<String> deviceConfigQuery(String serverId, Device device, String channelId, String configType) {
+    public WVPResult<String> deviceVideoParamConfig(String serverId, Device device, VideoParamOpt videoParamOpt) {
+        RedisRpcRequest request = buildRequest("device/deviceVideoParamConfig", JSONObject.toJSONString(videoParamOpt));
+        request.setToId(serverId);
+        RedisRpcResponse response = redisRpcConfig.request(request, 50, TimeUnit.MILLISECONDS);
+        return JSON.parseObject(response.getBody().toString(), WVPResult.class);
+    }
+
+    @Override
+    public WVPResult<Object> deviceConfigQuery(String serverId, Device device, String channelId, String configType) {
         JSONObject jsonObject = new JSONObject();
-        jsonObject.put("device", device.getDeviceId());
+        jsonObject.put("deviceId", device.getDeviceId());
         jsonObject.put("channelId", channelId);
         jsonObject.put("configType", configType);
         RedisRpcRequest request = buildRequest("device/deviceConfigQuery", jsonObject);
@@ -358,33 +441,33 @@ public class RedisRpcServiceImpl implements IRedisRpcService {
     }
 
     @Override
-    public void dragZoomIn(String serverId, Device device, String channelId, int length, int width, int midpointx,
-                           int midpointy, int lengthx, int lengthy) {
+    public void dragZoomIn(String serverId, Device device, String channelId, int length, int width, int midPointX,
+                           int midPointY, int lengthX, int lengthY) {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("device", device.getDeviceId());
         jsonObject.put("channelId", channelId);
         jsonObject.put("length", length);
         jsonObject.put("width", width);
-        jsonObject.put("midpointx", midpointx);
-        jsonObject.put("midpointy", midpointy);
-        jsonObject.put("lengthx", lengthx);
-        jsonObject.put("lengthy", lengthy);
+        jsonObject.put("midPointX", midPointX);
+        jsonObject.put("midPointY", midPointY);
+        jsonObject.put("lengthX", lengthX);
+        jsonObject.put("lengthY", lengthY);
         RedisRpcRequest request = buildRequest("device/dragZoomIn", jsonObject);
         request.setToId(serverId);
         redisRpcConfig.request(request, 50, TimeUnit.MILLISECONDS);
     }
 
     @Override
-    public void dragZoomOut(String serverId, Device device, String channelId, int length, int width, int midpointx, int midpointy, int lengthx, int lengthy) {
+    public void dragZoomOut(String serverId, Device device, String channelId, int length, int width, int midPointX, int midPointY, int lengthX, int lengthY) {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("device", device.getDeviceId());
         jsonObject.put("channelId", channelId);
         jsonObject.put("length", length);
         jsonObject.put("width", width);
-        jsonObject.put("midpointx", midpointx);
-        jsonObject.put("midpointy", midpointy);
-        jsonObject.put("lengthx", lengthx);
-        jsonObject.put("lengthy", lengthy);
+        jsonObject.put("midPointX", midPointX);
+        jsonObject.put("midPointY", midPointY);
+        jsonObject.put("lengthX", lengthX);
+        jsonObject.put("lengthY", lengthY);
         RedisRpcRequest request = buildRequest("device/dragZoomOut", jsonObject);
         request.setToId(serverId);
         redisRpcConfig.request(request, 50, TimeUnit.MILLISECONDS);

@@ -48,7 +48,10 @@ import {
   stopPlayback,
   pausePlayback,
   resumePlayback,
-  seekPlayback, speedPlayback
+  seekPlayback, speedPlayback, getAllForMap, test, saveLevel, resetLevel, clearThin, thinProgress, drawThin, saveThin,
+  dragZoomIn, dragZoomOut,
+  talkStart, talkStop, broadcastStart, broadcastStop,
+  homePosition
 } from '@/api/commonChannel'
 
 const actions = {
@@ -72,9 +75,9 @@ const actions = {
       })
     })
   },
-  reset({ commit }, id) {
+  reset({ commit }, data) {
     return new Promise((resolve, reject) => {
-      reset(id).then(response => {
+      reset(data).then(response => {
         const { data } = response
         resolve(data)
       }).catch(error => {
@@ -275,6 +278,46 @@ const actions = {
   stopPlayChannel({ commit }, channelId) {
     return new Promise((resolve, reject) => {
       stopPlayChannel(channelId).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  talkStart({ commit }, channelId) {
+    return new Promise((resolve, reject) => {
+      talkStart(channelId).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  talkStop({ commit }, channelId) {
+    return new Promise((resolve, reject) => {
+      talkStop(channelId).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  broadcastStart({ commit }, channelId) {
+    return new Promise((resolve, reject) => {
+      broadcastStart(channelId).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  broadcastStop({ commit }, channelId) {
+    return new Promise((resolve, reject) => {
+      broadcastStop(channelId).then(response => {
         const { data } = response
         resolve(data)
       }).catch(error => {
@@ -492,6 +535,26 @@ const actions = {
       })
     })
   },
+  dragZoomIn({ commit }, params) {
+    return new Promise((resolve, reject) => {
+      dragZoomIn(params).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  dragZoomOut({ commit }, params) {
+    return new Promise((resolve, reject) => {
+      dragZoomOut(params).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
   queryRecord({ commit }, params) {
     return new Promise((resolve, reject) => {
       queryRecord(params).then(response => {
@@ -555,6 +618,98 @@ const actions = {
   speedPlayback({ commit }, params) {
     return new Promise((resolve, reject) => {
       speedPlayback(params).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  getAllForMap({ commit }, params) {
+    return new Promise((resolve, reject) => {
+      getAllForMap(params).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  saveLevel({ commit }, data) {
+    return new Promise((resolve, reject) => {
+      saveLevel(data).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  resetLevel({ commit }) {
+    return new Promise((resolve, reject) => {
+      resetLevel().then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  clearThin({ commit }, id) {
+    return new Promise((resolve, reject) => {
+      clearThin(id).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  thinProgress({ commit }, id) {
+    return new Promise((resolve, reject) => {
+      thinProgress(id).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  saveThin({ commit }, id) {
+    return new Promise((resolve, reject) => {
+      saveThin(id).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+  drawThin({ commit }, param) {
+    return new Promise((resolve, reject) => {
+      drawThin(param).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+
+  homePosition({ commit }, params) {
+    return new Promise((resolve, reject) => {
+      homePosition(params).then(response => {
+        const { data } = response
+        resolve(data)
+      }).catch(error => {
+        reject(error)
+      })
+    })
+  },
+
+  test({ commit }) {
+    return new Promise((resolve, reject) => {
+      test().then(response => {
         const { data } = response
         resolve(data)
       }).catch(error => {

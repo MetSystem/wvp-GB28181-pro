@@ -1,77 +1,55 @@
 package com.genersoft.iot.vmp.service.impl;
 
-import com.genersoft.iot.vmp.conf.UserSetting;
-import com.genersoft.iot.vmp.gb28181.bean.DeviceChannel;
 import com.genersoft.iot.vmp.gb28181.bean.MobilePosition;
 import com.genersoft.iot.vmp.gb28181.bean.Platform;
+import com.genersoft.iot.vmp.gb28181.dao.MobilePositionMapper;
 import com.genersoft.iot.vmp.gb28181.dao.PlatformMapper;
+import com.genersoft.iot.vmp.gb28181.event.subscribe.mobilePosition.MobilePositionEvent;
+import com.genersoft.iot.vmp.gb28181.service.IPlatformChannelService;
+import com.genersoft.iot.vmp.gb28181.service.ISourceOtherService;
 import com.genersoft.iot.vmp.service.IMobilePositionService;
-import com.genersoft.iot.vmp.gb28181.dao.DeviceChannelMapper;
-import com.genersoft.iot.vmp.gb28181.dao.DeviceMobilePositionMapper;
-import com.genersoft.iot.vmp.service.bean.GPSMsgInfo;
 import com.genersoft.iot.vmp.utils.DateUtil;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class MobilePositionServiceImpl implements IMobilePositionService {
 
-    @Autowired
-    private DeviceChannelMapper channelMapper;
+    private final ConcurrentLinkedQueue<MobilePosition> mobilePositionQueue = new ConcurrentLinkedQueue<>();
 
-    @Autowired
-    private DeviceMobilePositionMapper mobilePositionMapper;
+    private final Map<String, ISourceOtherService> sourceOtherServiceMap;
 
-    @Autowired
-    private UserSetting userSetting;
+    private final MobilePositionMapper mobilePositionMapper;
 
+    private final IPlatformChannelService platformChannelService;
 
-    @Autowired
-    private PlatformMapper platformMapper;
-
-    @Autowired
-    private RedisTemplate<String, MobilePosition> redisTemplate;
-
-    private final String REDIS_MOBILE_POSITION_LIST = "redis_mobile_position_list";
-
-    @Override
-    public void add(MobilePosition mobilePosition) {
-        List<MobilePosition> list = new ArrayList<>();
-        list.add(mobilePosition);
-        add(list);
-    }
-
-    @Override
-    public void add(List<MobilePosition> mobilePositionList) {
-        redisTemplate.opsForList().leftPushAll(REDIS_MOBILE_POSITION_LIST, mobilePositionList);
-    }
-
-    private List<MobilePosition> get(int length) {
-        Long size = redisTemplate.opsForList().size(REDIS_MOBILE_POSITION_LIST);
-        if (size == null || size == 0) {
-            return new ArrayList<>();
-        }
-        return redisTemplate.opsForList().rightPop(REDIS_MOBILE_POSITION_LIST, Math.min(length, size));
-    }
-
-
+    private final PlatformMapper platformMapper;
 
     /**
      * 查询移动位置轨迹
      */
     @Override
-    public synchronized List<MobilePosition> queryMobilePositions(String deviceId, String channelId, String startTime, String endTime) {
-        return mobilePositionMapper.queryPositionByDeviceIdAndTime(deviceId, channelId, startTime, endTime);
+    public synchronized List<MobilePosition> queryMobilePositions(Integer channelId, String startTime, String endTime) {
+        Long startTimestamp = null;
+        Long endTimestamp = null;
+        if (startTime != null) {
+            startTimestamp = DateUtil.yyyy_MM_dd_HH_mm_ssToTimestampMs(startTime);
+        }
+        if (endTime != null) {
+            endTimestamp = DateUtil.yyyy_MM_dd_HH_mm_ssToTimestampMs(endTime);
+        }
+        return mobilePositionMapper.queryPositionByDeviceIdAndTime(channelId, startTimestamp, endTimestamp);
     }
 
     @Override
@@ -81,43 +59,63 @@ public class MobilePositionServiceImpl implements IMobilePositionService {
 
     /**
      * 查询最新移动位置
-     * @param deviceId
      */
     @Override
-    public MobilePosition queryLatestPosition(String deviceId) {
-        return mobilePositionMapper.queryLatestPositionByDevice(deviceId);
+    public MobilePosition queryLatestPosition(Integer channelId) {
+        return mobilePositionMapper.queryLatestPosition(channelId);
     }
 
-    @Override
-    public void updateStreamGPS(List<GPSMsgInfo> gpsMsgInfoList) {
-        channelMapper.updateStreamGPS(gpsMsgInfoList);
-    }
-
-    @Scheduled(fixedDelay = 1000)
-    @Transactional
-    public void executeTaskQueue() {
-        int countLimit = 3000;
-        List<MobilePosition> mobilePositions = get(countLimit);
-        if (mobilePositions == null || mobilePositions.isEmpty()) {
+    @Async
+    @EventListener
+    public void onApplicationEvent(MobilePositionEvent event) {
+        if (event.getMobilePositionList() == null || event.getMobilePositionList().isEmpty()) {
             return;
         }
-        if (userSetting.getSavePositionHistory()) {
-            mobilePositionMapper.batchadd(mobilePositions);
+        if (event.getMobilePositionList().get(0).getChannelId() != null) {
+            mobilePositionQueue.addAll(event.getMobilePositionList());
+            return;
         }
-        log.info("[移动位置订阅]更新通道位置： {}", mobilePositions.size());
-        Map<String, DeviceChannel> updateChannelMap = new HashMap<>();
-        for (MobilePosition mobilePosition : mobilePositions) {
-            DeviceChannel deviceChannel = new DeviceChannel();
-            deviceChannel.setId(mobilePosition.getChannelId());
-            deviceChannel.setDeviceId(mobilePosition.getDeviceId());
-            deviceChannel.setLongitude(mobilePosition.getLongitude());
-            deviceChannel.setLatitude(mobilePosition.getLatitude());
-            deviceChannel.setGpsTime(mobilePosition.getTime());
-            deviceChannel.setUpdateTime(DateUtil.getNow());
-            updateChannelMap.put(mobilePosition.getDeviceId() + mobilePosition.getChannelId(), deviceChannel);
+        for (ISourceOtherService sourceOtherService : sourceOtherServiceMap.values()) {
+            try {
+                // 此时已经完成了通道ID的添加，以及坐标系的转换，后续只需要将数据保存到数据库即可
+                Boolean addResult = sourceOtherService.addChannelIdForMobilePosition(event.getMobilePositionList());
+                if (addResult != null && addResult) {
+                    mobilePositionQueue.addAll(event.getMobilePositionList());
+                }
+            }catch (Exception e) {
+                log.error("[移动位置事件] 处理移动位置事件失败", e);
+            }
         }
-        List<DeviceChannel> channels = new ArrayList<>(updateChannelMap.values());
-        channelMapper.batchUpdatePosition(channels);
+    }
+
+    @Scheduled(fixedDelay = 500)
+    public void executeMobilePositionQueue() {
+        if (mobilePositionQueue.isEmpty()) {
+            return;
+        }
+        List<MobilePosition> handlerCatchDataList = new ArrayList<>();
+        int size = mobilePositionQueue.size();
+        for (int i = 0; i < size; i++) {
+            MobilePosition poll = mobilePositionQueue.poll();
+            if (poll != null) {
+                handlerCatchDataList.add(poll);
+            }
+        }
+        if (handlerCatchDataList.isEmpty()) {
+            return;
+        }
+        List<MobilePosition> mobilePositionList = handlerCatchDataList.stream().filter(
+                mobilePosition -> mobilePosition.getChannelId() != 0).toList();
+        // 发送通知，方便国标级联转发给上级
+        Thread.startVirtualThread(() -> platformChannelService.notifyMobilePosition(mobilePositionList));
+
+        // 批量保存到数据库
+        int batchSize = 1000;
+        for (int i = 0; i < mobilePositionList.size(); i += batchSize) {
+            int end = Math.min(i + batchSize, mobilePositionList.size());
+            List<MobilePosition> batchList = mobilePositionList.subList(i, end);
+            mobilePositionMapper.batchAdd(batchList);
+        }
     }
 
 }

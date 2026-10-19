@@ -28,3 +28,9 @@ hs_err_pid*
 
 /src/main/resources/static/
 certificates
+/.vs
+/docker/volumes
+/docker/wvp/config/jwk.json
+/打包/
+/snap/
+/config/
